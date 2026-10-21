@@ -676,6 +676,199 @@ body::before {
     color: var(--clr-muted);
 }
 
+/* ------------------------- 6.2. ДНЕВНИК ПИТАНИЯ --------------------------- */
+.diary { max-width: 920px; margin-inline: auto; display: grid; gap: var(--space-lg); }
+
+/* Шапка дня: дата + навигация */
+.diary__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+}
+.diary__title {
+    font-family: var(--font-display);
+    font-size: var(--fs-h1);
+    color: var(--clr-teal-deep);
+}
+.diary__nav { display: flex; align-items: center; gap: var(--space-sm); }
+.diary__nav-btn {
+    padding: var(--space-xs);
+    border-radius: var(--radius-sm);
+    color: var(--clr-teal-deep);
+    transition: background-color var(--transition);
+}
+.diary__nav-btn:hover { background: rgba(255, 255, 255, .5); }
+.diary__nav-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.diary__date { font-size: var(--fs-body); font-weight: 600; color: var(--clr-teal-deep); }
+
+/* Сводка: кольцо калорий + прогресс-бары БЖУ */
+.diary__summary {
+    display: grid;
+    gap: var(--space-lg);
+    padding: var(--space-xl);
+    align-items: center;
+}
+@media (min-width: 768px) {
+    .diary__summary { grid-template-columns: auto 1fr; }
+}
+
+/* Кольцо калорий (SVG) */
+.summary__ring { position: relative; width: 140px; height: 140px; margin-inline: auto; }
+.ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--clr-line); stroke-width: 8; }
+.ring-progress {
+    fill: none;
+    stroke: var(--clr-emerald);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset .6s var(--ease-smooth);
+}
+.ring-text {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-align: center;
+}
+.ring-value {
+    font-family: var(--font-display);
+    font-size: var(--fs-h2);
+    color: var(--clr-teal-deep);
+    line-height: 1;
+}
+.ring-label { font-size: var(--fs-small); color: var(--clr-muted); margin-top: var(--space-2xs); }
+
+/* Прогресс-бары БЖУ */
+.summary__macros { display: grid; gap: var(--space-md); }
+.macro { display: grid; gap: var(--space-2xs); }
+.macro__header { display: flex; justify-content: space-between; align-items: baseline; }
+.macro__name { font-size: var(--fs-small); font-weight: 600; color: var(--clr-ink); }
+.macro__value { font-size: var(--fs-caption); color: var(--clr-muted); }
+.macro__bar {
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: rgba(10, 75, 69, .08);
+    overflow: hidden;
+}
+.macro__fill {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    transition: width .5s var(--ease-smooth);
+}
+.macro__fill--protein { background: linear-gradient(90deg, var(--clr-tiffany), var(--clr-emerald)); }
+.macro__fill--fat { background: linear-gradient(90deg, #f0c674, var(--clr-fat)); }
+.macro__fill--carb { background: linear-gradient(90deg, var(--clr-teal), #0a5f56); }
+
+/* Приёмы пищи: сетка карточек */
+.diary__meals { display: grid; gap: var(--space-md); }
+@media (min-width: 800px) {
+    .diary__meals { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Карточка приёма пищи */
+.meal-card {
+    display: grid;
+    gap: var(--space-sm);
+    padding: var(--space-lg);
+    transition: transform .35s var(--ease-smooth), box-shadow .35s var(--ease-smooth);
+}
+.meal-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-glass-lg); }
+.meal-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-sm);
+}
+.meal-card__title {
+    font-family: var(--font-display);
+    font-size: var(--fs-h3);
+    color: var(--clr-teal-deep);
+}
+.meal-card__cals { font-size: var(--fs-small); font-weight: 600; color: var(--clr-emerald); }
+
+/* Список продуктов в карточке */
+.meal-card__list { display: grid; gap: var(--space-xs); }
+.meal-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-sm);
+    font-size: var(--fs-small);
+    color: var(--clr-ink);
+}
+.meal-item__name { flex: 1; }
+.meal-item__cals { color: var(--clr-muted); font-size: var(--fs-caption); }
+
+/* Пустое состояние карточки */
+.meal-card__empty {
+    font-size: var(--fs-small);
+    color: var(--clr-muted);
+    font-style: italic;
+    padding-block: var(--space-xs);
+}
+
+/* Кнопка добавления продукта */
+.meal-card__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    border-radius: var(--radius-pill);
+    background: rgba(31, 189, 142, .12);
+    color: var(--clr-emerald);
+    font-size: var(--fs-small);
+    font-weight: 700;
+    transition: background-color var(--transition), transform var(--transition);
+}
+.meal-card__add:hover {
+    background: rgba(31, 189, 142, .22);
+    transform: translateY(-2px);
+}
+.meal-card__add svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+}
+
+/* Плавающая кнопка быстрого добавления (только мобильные) */
+.fab-add {
+    position: fixed;
+    bottom: calc(var(--space-lg) + var(--topbar-h));
+    right: var(--space-md);
+    z-index: 40;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--clr-emerald), var(--clr-teal));
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(14, 125, 114, .40),
+                inset 0 1px 0 rgba(255, 255, 255, .35);
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+.fab-add:hover {
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 16px 36px rgba(14, 125, 114, .50),
+                inset 0 1px 0 rgba(255, 255, 255, .4);
+}
+.fab-add svg {
+    width: 28px;
+    height: 28px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+}
+@media (min-width: 1024px) {
+    .fab-add { bottom: var(--space-lg); }
+}
+
 /* ------------------------ 7. АНИМАЦИИ ПОЯВЛЕНИЯ -------------------------- */
 @keyframes page-fade {
     from { opacity: 0; }
