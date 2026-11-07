@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="NutriFlow — дневник питания: учёт калорий и БЖУ, планирование приёмов пищи, статистика прогресса.">
+<meta name="description" content="NutriFlow — дневник питания: учёт калорий и БЖУ, приёмы пищи, добавление продуктов из базы.">
 <meta name="theme-color" content="#eef7f4">
 <title>Дневник питания — NutriFlow</title>
 <!-- Шрифты: Unbounded (акцидентный) + Manrope (наборный), оба с кириллицей -->
@@ -26,7 +26,6 @@
             </svg>
             <span class="brand__name">NutriFlow</span>
         </a>
-        <!-- Кнопка закрытия видна только на мобильных -->
         <button class="sidebar__close" id="sidebar-close" aria-label="Закрыть меню">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
@@ -70,10 +69,9 @@
         <p class="sidebar__note">Дипломный проект · 2026</p>
     </div>
 </aside>
-<!-- Затемнение под мобильным сайдбаром -->
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
-<!-- ============ ВЕРХНЯЯ ПАНЕЛЬ (только мобильные, плавающее стекло) ============ -->
+<!-- ============ ВЕРХНЯЯ ПАНЕЛЬ (только мобильные) ============ -->
 <header class="topbar">
     <button class="topbar__burger" id="sidebar-open" aria-label="Открыть меню">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -85,157 +83,117 @@
 <!-- ============ КОНТЕНТ ДНЕВНИКА ============ -->
 <main class="content">
     <div class="diary">
-        <!-- Шапка дня: дата + навигация -->
+
+        <!-- Шапка дня: заголовок + навигация по датам -->
         <header class="diary__header glass reveal">
             <h1 class="diary__title">Дневник питания</h1>
             <div class="diary__nav">
-                <button class="diary__nav-btn" aria-label="Предыдущий день">
+                <button class="diary__nav-btn" id="diary-prev" aria-label="Предыдущий день">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
                 </button>
-                <span class="diary__date" id="diary-date">Сегодня, 22 октября</span>
-                <button class="diary__nav-btn" aria-label="Следующий день">
+                <span class="diary__date" id="diary-date">Сегодня</span>
+                <button class="diary__nav-btn" id="diary-next" aria-label="Следующий день">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
             </div>
         </header>
 
-        <!-- Сводка дня: кольцо калорий + прогресс-бары БЖУ -->
-        <section class="diary__summary glass reveal" aria-labelledby="summary-title">
-            <h2 class="visually-hidden" id="summary-title">Сводка за день</h2>
+        <!-- Сводка дня: кольцо калорий + прогресс-бары БЖУ (значения ставит JS) -->
+        <section class="diary__summary glass reveal" aria-label="Сводка за день">
             <div class="summary__ring">
                 <svg class="ring-svg" viewBox="0 0 120 120" aria-hidden="true">
                     <circle class="ring-bg" cx="60" cy="60" r="52"/>
-                    <circle class="ring-progress" cx="60" cy="60" r="52" 
-                            stroke-dasharray="327" stroke-dashoffset="120"/>
+                    <circle class="ring-progress" id="ring-progress" cx="60" cy="60" r="52"
+                            stroke-dasharray="327" stroke-dashoffset="327"/>
                 </svg>
                 <div class="ring-text">
-                    <span class="ring-value">1 247</span>
-                    <span class="ring-label">ккал</span>
+                    <span class="ring-value" id="ring-value">0</span>
+                    <span class="ring-label" id="ring-goal">из 1800 ккал</span>
                 </div>
             </div>
             <div class="summary__macros">
                 <div class="macro">
                     <div class="macro__header">
                         <span class="macro__name">Белки</span>
-                        <span class="macro__value">68 / 120 г</span>
+                        <span class="macro__value" data-macro-value="protein">0 / 120 г</span>
                     </div>
                     <div class="macro__bar">
-                        <div class="macro__fill macro__fill--protein" style="width: 57%"></div>
+                        <div class="macro__fill macro__fill--protein" data-macro-bar="protein"></div>
                     </div>
                 </div>
                 <div class="macro">
                     <div class="macro__header">
                         <span class="macro__name">Жиры</span>
-                        <span class="macro__value">45 / 70 г</span>
+                        <span class="macro__value" data-macro-value="fat">0 / 70 г</span>
                     </div>
                     <div class="macro__bar">
-                        <div class="macro__fill macro__fill--fat" style="width: 64%"></div>
+                        <div class="macro__fill macro__fill--fat" data-macro-bar="fat"></div>
                     </div>
                 </div>
                 <div class="macro">
                     <div class="macro__header">
                         <span class="macro__name">Углеводы</span>
-                        <span class="macro__value">142 / 200 г</span>
+                        <span class="macro__value" data-macro-value="carb">0 / 200 г</span>
                     </div>
                     <div class="macro__bar">
-                        <div class="macro__fill macro__fill--carb" style="width: 71%"></div>
+                        <div class="macro__fill macro__fill--carb" data-macro-bar="carb"></div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Приёмы пищи: 4 карточки -->
-        <section class="diary__meals" aria-labelledby="meals-title">
-            <h2 class="visually-hidden" id="meals-title">Приёмы пищи</h2>
-            
-            <!-- Завтрак -->
-            <article class="meal-card glass reveal">
+        <!-- Приёмы пищи: списки渲染ит script.js из localStorage -->
+        <section class="diary__meals" aria-label="Приёмы пищи за день">
+            <article class="meal-card glass reveal" data-meal="breakfast">
                 <header class="meal-card__head">
                     <h3 class="meal-card__title">Завтрак</h3>
-                    <span class="meal-card__cals">342 ккал</span>
+                    <span class="meal-card__cals" data-meal-total="breakfast">0 ккал</span>
                 </header>
-                <ul class="meal-card__list">
-                    <li class="meal-item">
-                        <span class="meal-item__name">Овсянка с ягодами</span>
-                        <span class="meal-item__cals">245 ккал</span>
-                    </li>
-                    <li class="meal-item">
-                        <span class="meal-item__name">Кофе с молоком</span>
-                        <span class="meal-item__cals">97 ккал</span>
-                    </li>
-                </ul>
-                <button class="meal-card__add" aria-label="Добавить продукт к завтраку">
+                <ul class="meal-card__list" data-meal-list="breakfast"></ul>
+                <button class="meal-card__add" data-meal-add="breakfast" aria-label="Добавить продукт к завтраку">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Добавить</span>
                 </button>
             </article>
 
-            <!-- Обед -->
-            <article class="meal-card glass reveal">
+            <article class="meal-card glass reveal" data-meal="lunch">
                 <header class="meal-card__head">
                     <h3 class="meal-card__title">Обед</h3>
-                    <span class="meal-card__cals">524 ккал</span>
+                    <span class="meal-card__cals" data-meal-total="lunch">0 ккал</span>
                 </header>
-                <ul class="meal-card__list">
-                    <li class="meal-item">
-                        <span class="meal-item__name">Куриная грудка на пару</span>
-                        <span class="meal-item__cals">287 ккал</span>
-                    </li>
-                    <li class="meal-item">
-                        <span class="meal-item__name">Гречка отварная</span>
-                        <span class="meal-item__cals">168 ккал</span>
-                    </li>
-                    <li class="meal-item">
-                        <span class="meal-item__name">Салат из свежих овощей</span>
-                        <span class="meal-item__cals">69 ккал</span>
-                    </li>
-                </ul>
-                <button class="meal-card__add" aria-label="Добавить продукт к обеду">
+                <ul class="meal-card__list" data-meal-list="lunch"></ul>
+                <button class="meal-card__add" data-meal-add="lunch" aria-label="Добавить продукт к обеду">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Добавить</span>
                 </button>
             </article>
 
-            <!-- Ужин -->
-            <article class="meal-card glass reveal">
+            <article class="meal-card glass reveal" data-meal="dinner">
                 <header class="meal-card__head">
                     <h3 class="meal-card__title">Ужин</h3>
-                    <span class="meal-card__cals">381 ккал</span>
+                    <span class="meal-card__cals" data-meal-total="dinner">0 ккал</span>
                 </header>
-                <ul class="meal-card__list">
-                    <li class="meal-item">
-                        <span class="meal-item__name">Творог 5%</span>
-                        <span class="meal-item__cals">184 ккал</span>
-                    </li>
-                    <li class="meal-item">
-                        <span class="meal-item__name">Банан</span>
-                        <span class="meal-item__cals">97 ккал</span>
-                    </li>
-                </ul>
-                <button class="meal-card__add" aria-label="Добавить продукт к ужину">
+                <ul class="meal-card__list" data-meal-list="dinner"></ul>
+                <button class="meal-card__add" data-meal-add="dinner" aria-label="Добавить продукт к ужину">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Добавить</span>
                 </button>
             </article>
 
-            <!-- Перекус -->
-            <article class="meal-card glass reveal">
+            <article class="meal-card glass reveal" data-meal="snack">
                 <header class="meal-card__head">
                     <h3 class="meal-card__title">Перекус</h3>
-                    <span class="meal-card__cals">0 ккал</span>
+                    <span class="meal-card__cals" data-meal-total="snack">0 ккал</span>
                 </header>
-                <p class="meal-card__empty">Пока ничего не добавлено</p>
-                <button class="meal-card__add" aria-label="Добавить продукт к перекусу">
+                <ul class="meal-card__list" data-meal-list="snack"></ul>
+                <button class="meal-card__add" data-meal-add="snack" aria-label="Добавить продукт к перекусу">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Добавить</span>
                 </button>
             </article>
         </section>
 
-        <!-- Плавающая кнопка быстрого добавления (только мобильные) -->
-        <button class="fab-add" aria-label="Быстро добавить продукт">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
+    
     </div>
 
     <footer class="site-footer">
@@ -244,7 +202,54 @@
     </footer>
 </main>
 
-<!-- Логика приложения -->
-<script src="script.js" defer></script>
+<!-- ============ МОДАЛЬНОЕ ОКНО: ВЫБОР ПРОДУКТОВ ============ -->
+<div class="modal" id="product-modal" hidden>
+    <div class="modal__backdrop" data-modal-close></div>
+    <div class="modal__dialog glass" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header class="modal__head">
+            <button class="btn-soft" data-modal-close>Закрыть</button>
+            <h2 class="visually-hidden" id="modal-title">Добавить продукты</h2>
+            <button class="btn btn--primary modal__save" id="modal-save" disabled>Сохранить</button>
+        </header>
+
+        <!-- Вкладки: поиск по базе / недавние продукты пользователя -->
+        <div class="modal__tabs" role="tablist" aria-label="Источник продуктов">
+            <button class="modal__tab is-active" role="tab" aria-selected="true"  data-tab="search">Поиск</button>
+            <button class="modal__tab"           role="tab" aria-selected="false" data-tab="recent">Недавние</button>
+        </div>
+
+        <!-- Живой поиск по базе PRODUCTS_DB -->
+        <div class="modal__search" id="modal-search-wrap">
+            <input type="search" id="modal-search-input" placeholder="Введите название продукта…" autocomplete="off">
+            <button class="modal__clear" id="modal-search-clear" aria-label="Очистить поиск">×</button>
+        </div>
+
+        <!-- Список результатов (рендерит script.js) -->
+        <ul class="modal__list" id="modal-list"></ul>
+    </div>
+</div>
+
+<!-- ============ МИНИ-ОКНО: ИЗМЕНЕНИЕ ГРАММОВКИ ============ -->
+<div class="modal modal--mini" id="weight-modal" hidden>
+    <div class="modal__backdrop" data-weight-close></div>
+    <div class="modal__dialog modal__dialog--mini glass" role="dialog" aria-modal="true" aria-labelledby="weight-title">
+        <h2 class="modal__mini-title" id="weight-title">Изменить граммовку</h2>
+        <p class="modal__mini-name" id="weight-name">—</p>
+        <div class="modal__mini-row">
+            <input class="modal__mini-input" type="number" id="weight-input"
+                   min="1" max="5000" step="1" inputmode="numeric" aria-label="Вес порции в граммах">
+            <span class="modal__mini-unit">г</span>
+        </div>
+        <p class="modal__mini-kcal" id="weight-kcal">0 ккал</p>
+        <div class="modal__mini-actions">
+            <button class="btn-soft" data-weight-close>Отмена</button>
+            <button class="btn btn--primary" id="weight-save">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Слой данных (база продуктов), затем логика приложения -->
+<script src="data/products.js" defer></script>
+<script src="data/script.js" defer></script>
 </body>
 </html>

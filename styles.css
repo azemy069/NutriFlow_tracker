@@ -1,11 +1,14 @@
 /* ==========================================================================
 NUTRIFLOW — дневник питания и планировщик рациона
 Стиль: LIQUID GLASS (по мотивам iOS 26) + фоновое фото
---------------------------------------------------------------------------
 Слои: 1) тема · 2) сброс · 3) типографика · 4) фон (фото + ореолы) ·
 5) каркас (зелёный стеклянный сайдбар, топбар) · 6) главная страница ·
 7) анимации · 8) утилиты и доступность
 ========================================================================== */
+
+/* Атрибут hidden обязан скрывать блок всегда: иначе display: grid/flex
+   у классов перебивает его, и экраны «слипаются» */
+[hidden] { display: none !important; }
 
 /* ------------------------------ 1. ТЕМА --------------------------------- */
 :root {
@@ -30,11 +33,11 @@ NUTRIFLOW — дневник питания и планировщик рацио
     --clr-danger:  #e2685a;
 
     /* ==== ТОКЕНЫ «ЖИДКОГО СТЕКЛА» ==== */
-        --glass-bg:        rgba(223, 244, 237, .26);  /* почти прозрачное зелёное стекло */
+    --glass-bg:        rgba(223, 244, 237, .26);  /* почти прозрачное зелёное стекло */
     --glass-bg-soft:   rgba(223, 244, 237, .18);  /* ещё легче — для подложек */
     --glass-bg-strong: rgba(233, 248, 243, .45);  /* плотное стекло (топбар) */
     --glass-border:    rgba(255, 255, 255, .75);  /* яркая светлая кромка, как в iOS */
-    --glass-blur:      blur(3px) saturate(180%);  /* слабое размытие: фон читается */
+    --glass-blur:      blur(8px) saturate(180%);  /* умеренное размытие: карточки мягче */
     /* Кромка стекла: яркий блик сверху + тонкий ободок по контуру */
     --shadow-glass:    0 10px 30px rgba(10, 75, 69, .10),
                        inset 0 1px 0 rgba(255, 255, 255, .80),
@@ -588,38 +591,39 @@ body::before {
 .story-card figcaption { font-size: var(--fs-caption); color: var(--clr-muted); }
 .story-card figcaption strong { color: var(--clr-teal-deep); }
 
-/* Финальный призыв: акцентное изумрудное стекло с бликом */
+/* Финальный призыв: яркое молочно-мятное стекло, как окно выбора
+   продуктов. Тёмной подложки НЕТ — именно она серела фото.
+   Молочность даёт плотная светлая база + блик поверх неё */
 .cta-band {
-    position: relative;
-    overflow: hidden;
     padding: var(--space-2xl) var(--space-xl);
-    border-radius: var(--radius-lg);
-    color: #fff;
-    background: linear-gradient(135deg, rgba(31, 189, 142, .80), rgba(14, 125, 114, .86));
-    -webkit-backdrop-filter: var(--glass-blur);
-    backdrop-filter: var(--glass-blur);
-    border: 1px solid rgba(255, 255, 255, .35);
-    box-shadow: 0 22px 50px rgba(14, 125, 114, .30),
-                inset 0 1px 0 rgba(255, 255, 255, .45);
-}
-/* Световой блик в углу плашки */
-.cta-band::before {
-    content: "";
-    position: absolute;
-    top: -40%;
-    right: -10%;
-    width: 60%;
-    height: 140%;
-    background: radial-gradient(circle, rgba(255, 255, 255, .35), transparent 60%);
-    pointer-events: none;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-glass);
+    /* Размываем и насыщаем фото: за стеклом оно светится цветными облаками */
+    -webkit-backdrop-filter: blur(8px) saturate(180%);
+    backdrop-filter: blur(8px) saturate(180%);
+    /* Слои: светлый блик сверху, молочно-мятная база снизу */
+    background-image:
+        linear-gradient(135deg, rgba(255, 255, 255, .40), rgba(111, 214, 192, .24));
+    background-color: rgba(210, 241, 229, .66);
+    color: var(--clr-ink);
 }
 .cta-band h2 {
     font-family: var(--font-display);
     font-size: var(--fs-h2);
+    color: var(--clr-teal-deep);
     margin-bottom: var(--space-xs);
 }
-.cta-band p { max-width: 48ch; margin-bottom: var(--space-lg); color: rgba(255, 255, 255, .88); }
-.cta-band__actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); position: relative; }
+.cta-band p {
+    max-width: 48ch;
+    margin-bottom: var(--space-lg);
+    color: var(--clr-muted);
+}
+.cta-band__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
 
 /* Кнопки: стеклянные пилюли */
 .btn {
@@ -648,16 +652,17 @@ body::before {
     box-shadow: 0 14px 30px rgba(14, 159, 143, .42),
                 inset 0 1px 0 rgba(255, 255, 255, .5);
 }
-/* «Призрачная» стеклянная кнопка для тёмной плашки */
+/* «Призрачная» стеклянная кнопка — теперь для СВЕТЛОЙ стеклянной плашки:
+   выглядит как кнопка «Закрыть» в окне выбора продуктов */
 .btn--ghost {
-    color: #fff;
-    background: rgba(215, 242, 233, .28);
+    color: var(--clr-teal-deep);
+    background: rgba(255, 255, 255, .35);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
-    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .55);
+    box-shadow: inset 0 0 0 1.5px rgba(14, 125, 114, .40);
 }
 .btn--ghost:hover {
-    background: rgba(255, 255, 255, .30);
+    background: rgba(255, 255, 255, .60);
     transform: translateY(-3px);
 }
 
@@ -791,16 +796,7 @@ body::before {
 
 /* Список продуктов в карточке */
 .meal-card__list { display: grid; gap: var(--space-xs); }
-.meal-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--space-sm);
-    font-size: var(--fs-small);
-    color: var(--clr-ink);
-}
-.meal-item__name { flex: 1; }
-.meal-item__cals { color: var(--clr-muted); font-size: var(--fs-caption); }
+
 
 /* Пустое состояние карточки */
 .meal-card__empty {
@@ -837,37 +833,7 @@ body::before {
     stroke-linecap: round;
 }
 
-/* Плавающая кнопка быстрого добавления (только мобильные) */
-.fab-add {
-    position: fixed;
-    bottom: calc(var(--space-lg) + var(--topbar-h));
-    right: var(--space-md);
-    z-index: 40;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--clr-emerald), var(--clr-teal));
-    color: #fff;
-    box-shadow: 0 12px 28px rgba(14, 125, 114, .40),
-                inset 0 1px 0 rgba(255, 255, 255, .35);
-    transition: transform var(--transition), box-shadow var(--transition);
-}
-.fab-add:hover {
-    transform: translateY(-4px) scale(1.05);
-    box-shadow: 0 16px 36px rgba(14, 125, 114, .50),
-                inset 0 1px 0 rgba(255, 255, 255, .4);
-}
-.fab-add svg {
-    width: 28px;
-    height: 28px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-}
-@media (min-width: 1024px) {
-    .fab-add { bottom: var(--space-lg); }
-}
+
 
 /* ------------------------ 7. АНИМАЦИИ ПОЯВЛЕНИЯ -------------------------- */
 @keyframes page-fade {
@@ -921,3 +887,374 @@ body::before {
         transition-duration: .01ms !important;
     }
 }
+/* ==========================================================================
+9. АПГРЕЙД ДНЕВНИКА: СПИСОК ПРОДУКТОВ, МОДАЛЬНЫЕ ОКНА, ИСТОРИЯ
+--------------------------------------------------------------------------
+Стили списков в карточках (с граммовкой и корзиной), окна выбора
+продуктов (поиск + недавние) и мини-окна правки граммовки.
+========================================================================== */
+
+/* Блокировка прокрутки страницы под открытым окном */
+body.no-scroll { overflow: hidden; }
+
+/* ---------- Список продуктов внутри карточек приёмов ---------- */
+.meal-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--fs-small);
+}
+.meal-item__name { flex: 1; color: var(--clr-ink); }
+/* Граммовка — кликабельная «пилюля»: открывает мини-окно правки */
+.meal-item__weight {
+    padding: .15em .6em;
+    border-radius: var(--radius-pill);
+    border: 1px dashed rgba(14, 125, 114, .45);
+    background: rgba(255, 255, 255, .5);
+    color: var(--clr-teal);
+    font-size: var(--fs-caption);
+    font-weight: 700;
+    transition: background-color var(--transition), transform var(--transition);
+}
+.meal-item__weight:hover { background: var(--clr-mint); transform: scale(1.06); }
+.meal-item__cals {
+    min-width: 62px;
+    text-align: right;
+    color: var(--clr-muted);
+    font-size: var(--fs-caption);
+}
+/* Корзина удаления */
+.meal-item__delete {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--clr-muted);
+    transition: background-color var(--transition), color var(--transition);
+}
+.meal-item__delete svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.meal-item__delete:hover { color: var(--clr-danger); background: rgba(226, 104, 90, .12); }
+
+/* ---------- Каркас модальных окон ---------- */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    padding: var(--space-md);
+}
+.modal[hidden] { display: none; }
+.modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 75, 69, .35);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    animation: page-fade .25s ease-out both;
+}
+.modal__dialog {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    width: min(560px, 100%);
+    max-height: min(84vh, 760px);
+    padding: var(--space-lg);
+    overflow: hidden;
+    animation: modal-in .3s var(--ease-smooth) both;
+}
+@keyframes modal-in {
+    from { opacity: 0; transform: translateY(18px) scale(.97); }
+    to   { opacity: 1; transform: none; }
+}
+.modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+}
+/* Нейтральная мягкая кнопка («Закрыть», «Отмена») */
+.btn-soft {
+    padding: .7em 1.3em;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, .65);
+    color: var(--clr-ink);
+    font-size: var(--fs-small);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(10, 75, 69, .08);
+    transition: background-color var(--transition), transform var(--transition);
+}
+.btn-soft:hover { background: #fff; transform: translateY(-1px); }
+.modal__save { padding: .7em 1.4em; }
+.modal__save:disabled { opacity: .45; pointer-events: none; }
+
+/* ---------- Вкладки «Поиск / Недавние» ---------- */
+.modal__tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+}
+.modal__tab {
+    padding: .7em 1em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-line);
+    background: rgba(255, 255, 255, .55);
+    font-size: var(--fs-small);
+    font-weight: 700;
+    color: var(--clr-muted);
+    transition: background-color var(--transition), color var(--transition),
+                border-color var(--transition);
+}
+.modal__tab:hover { background: rgba(255, 255, 255, .8); }
+.modal__tab.is-active {
+    background: rgba(223, 244, 237, .85);
+    border-color: var(--clr-emerald);
+    color: var(--clr-teal-deep);
+    box-shadow: inset 0 0 0 1px var(--clr-emerald);
+}
+
+/* ---------- Поиск ---------- */
+.modal__search { position: relative; }
+.modal__search input {
+    width: 100%;
+    padding: .8em 2.6em .8em 1.1em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-line);
+    background: rgba(255, 255, 255, .75);
+    font-size: var(--fs-body);
+    color: var(--clr-ink);
+}
+.modal__search input::placeholder { color: var(--clr-muted); }
+.modal__clear {
+    position: absolute;
+    top: 50%;
+    right: .6em;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: var(--clr-muted);
+    font-size: 1.2rem;
+    line-height: 1;
+    transition: background-color var(--transition), color var(--transition);
+}
+.modal__clear:hover { background: rgba(10, 75, 69, .08); color: var(--clr-ink); }
+
+/* ---------- Список результатов ---------- */
+.modal__list {
+    flex: 1;
+    min-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--clr-tiffany) transparent;
+}
+.modal__item-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: .8em .4em;
+    border-bottom: 1px solid var(--clr-line);
+    text-align: left;
+    font-size: var(--fs-small);
+    color: var(--clr-ink);
+    transition: background-color var(--transition);
+}
+.modal__item-btn:hover { background: rgba(255, 255, 255, .45); }
+.modal__item-name { flex: 1; }
+.modal__item-last {
+    font-size: var(--fs-caption);
+    color: var(--clr-teal);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.modal__item-kcal {
+    font-size: var(--fs-caption);
+    color: var(--clr-muted);
+    white-space: nowrap;
+}
+/* Кружок-галочка выбора: пустой → зелёный с галочкой */
+.modal__item-check {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 2px solid rgba(10, 75, 69, .18);
+    transition: background-color var(--transition), border-color var(--transition),
+                box-shadow var(--transition);
+}
+.modal__item-check svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+.modal__item-btn.is-selected .modal__item-check {
+    background: linear-gradient(135deg, var(--clr-emerald), var(--clr-teal));
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(14, 125, 114, .35);
+}
+.modal__item-btn.is-selected .modal__item-check svg { opacity: 1; }
+.modal__empty {
+    padding: var(--space-lg);
+    text-align: center;
+    color: var(--clr-muted);
+    font-size: var(--fs-small);
+}
+
+/* ---------- Мини-окно правки граммовки ---------- */
+.modal__dialog--mini {
+    width: min(340px, 100%);
+    padding: var(--space-lg);
+    display: grid;
+    gap: var(--space-sm);
+    justify-items: center;
+    text-align: center;
+}
+.modal__mini-title {
+    font-family: var(--font-display);
+    font-size: var(--fs-h3);
+    color: var(--clr-teal-deep);
+}
+.modal__mini-name { font-size: var(--fs-small); color: var(--clr-muted); }
+.modal__mini-row { display: flex; align-items: center; gap: var(--space-xs); }
+.modal__mini-input {
+    width: 110px;
+    padding: .5em .6em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-line);
+    background: rgba(255, 255, 255, .85);
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: var(--fs-h2);
+    color: var(--clr-teal-deep);
+}
+.modal__mini-unit { font-size: var(--fs-h3); color: var(--clr-muted); }
+.modal__mini-kcal { font-size: var(--fs-small); font-weight: 800; color: var(--clr-emerald); }
+.modal__mini-actions { display: flex; gap: var(--space-sm); }
+
+/* ---------- Мелочи апгрейда ---------- */
+/* Бары БЖУ стартуют с нуля: ширину выставляет script.js */
+.macros .macro__fill,
+.macro__fill { width: 0; }
+/* Кольцо при переборе калорий краснеет */
+.ring-progress.is-over { stroke: var(--clr-danger); }
+/* Подпись под значением кольца */
+.ring-text { gap: 2px; }
+
+/* ==========================================================================
+10. ПРОФИЛЬ И АВТОРИЗАЦИЯ
+--------------------------------------------------------------------------
+Выбор режима (вход / регистрация), формы с проверкой по базе,
+красная плашка ошибки и шапка профиля с аватаркой и кнопками.
+Стекло — общее (класс .glass), размытие — общий токен --glass-blur.
+========================================================================== */
+.profile { max-width: 920px; margin-inline: auto; display: grid; gap: var(--space-lg); }
+
+/* ---------- Карточка входа / регистрации ---------- */
+.auth {
+    padding: var(--space-xl);
+    display: grid;
+    gap: var(--space-md);
+    justify-items: start;
+}
+.auth__title {
+    font-family: var(--font-display);
+    font-size: var(--fs-h1);
+    color: var(--clr-teal-deep);
+    max-width: 34ch;
+}
+/* Две кнопки выбора режима: вход (стекло) над регистрацией (изумруд) */
+.auth__modes { display: grid; gap: var(--space-sm); width: 100%; max-width: 420px; }
+.auth__modes .btn { justify-content: center; }
+/* Подсветка выбранного режима */
+.auth__modes .btn--ghost.is-active {
+    box-shadow: inset 0 0 0 2px var(--clr-emerald);
+    background: rgba(255, 255, 255, .60);
+}
+.auth__modes .btn--primary.is-active {
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .85),
+                0 10px 24px rgba(14, 159, 143, .35);
+}
+/* Форма: скрыта, пока режим не выбран */
+.auth__form { display: grid; gap: var(--space-sm); width: 100%; max-width: 420px; }
+.auth__form[hidden] { display: none; }
+.field { display: grid; gap: var(--space-2xs); }
+.field[hidden] { display: none; }
+.field__label {
+    font-size: var(--fs-caption);
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--clr-muted);
+}
+.field__input {
+    padding: .8em 1.1em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-line);
+    background: rgba(255, 255, 255, .75);
+    font-size: var(--fs-body);
+    color: var(--clr-ink);
+}
+.field__input::placeholder { color: var(--clr-muted); }
+.field__input:focus { outline: 2px solid var(--clr-teal); outline-offset: 2px; }
+/* Красная плашка ошибки ввода */
+.auth__error {
+    padding: .7em 1em;
+    border-radius: var(--radius-sm);
+    background: rgba(226, 104, 90, .16);
+    border: 1px solid rgba(226, 104, 90, .55);
+    color: #b23a2c;
+    font-size: var(--fs-small);
+    font-weight: 700;
+}
+.auth__submit { justify-self: start; }
+.auth__hint { font-size: var(--fs-caption); color: var(--clr-muted); max-width: 52ch; }
+
+/* ---------- Профиль после входа ---------- */
+.profile__body { display: grid; gap: var(--space-lg); }
+.profile__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+}
+.profile__person { display: flex; align-items: center; gap: var(--space-md); }
+.avatar {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .55), rgba(111, 214, 192, .35));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-glass);
+}
+.avatar svg { width: 34px; height: 34px; fill: var(--clr-teal); }
+.profile__name {
+    font-family: var(--font-display);
+    font-size: var(--fs-h2);
+    color: var(--clr-teal-deep);
+}
+.profile__email { font-size: var(--fs-small); color: var(--clr-muted); }
+/* Кнопки «Изменить цель» и «Выйти из аккаунта» */
+.profile__actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
