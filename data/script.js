@@ -1,16 +1,14 @@
 /* ==========================================================================
-   NUTRIFLOW — логика приложения (ВЕРСИЯ 3 — гарантированная изоляция)
-   Каждый пользователь хранит данные под своим ключом:
-   nutriflow.db.<id>.diary.v1 / .history.v1 / .weight.v1 / .goals.v1
-   Сессия:  nutriflow.db.session.v1  (переживает F5, но не другой компьютер)
+   NUTRIFLOW — логика приложения (ВЕРСИЯ 4 — строгая изоляция аккаунтов)
    ========================================================================== */
 'use strict';
 
-/* Метка версии: откройте консоль (F12) и убедитесь, что видите "версия 3".
-   Если её нет — браузер выполняет старый закэшированный файл. */
-const APP_VERSION = '3.0';
-const LOG = (...args) => console.log('%c[NutriFlow v' + APP_VERSION + ']',
-  'color:#0e7d72;font-weight:bold', ...args);
+const APP_VERSION = '4.0';
+const LOG = (...args) => console.log(
+  `%c[NutriFlow v${APP_VERSION}]`,
+  'color:#0e7d72;font-weight:bold',
+  ...args
+);
 
 /* ------------------ 1. УТИЛИТЫ И ДАТЫ ------------------ */
 const $  = (selector, root = document) => root.querySelector(selector);
@@ -31,7 +29,10 @@ const GOALS = { kcal: 1800, p: 120, f: 70, c: 200 };
 const RING_LENGTH = 327;
 const MEALS = [{ key: 'breakfast' }, { key: 'lunch' }, { key: 'dinner' }, { key: 'snack' }];
 const HISTORY_LIMIT = 20;
-const PRODUCT_MAP = new Map(PRODUCTS_DB.map((product) => [product.id, product]));
+
+/* Безопасная инициализация базы продуктов (не падает, если products.js не подключён) */
+const SAFE_PRODUCTS = typeof PRODUCTS_DB !== 'undefined' && Array.isArray(PRODUCTS_DB) ? PRODUCTS_DB : [];
+const PRODUCT_MAP = new Map(SAFE_PRODUCTS.map((product) => [product.id, product]));
 
 const calcPortion = (product, weight) => {
   const k = weight / 100;
@@ -66,22 +67,38 @@ const dateTitle = (key) => {
 };
 
 /* ------------------ 2. БАЗЫ ДАННЫХ И СЕССИЯ ------------------ */
-const DB_USERS   = 'nutriflow.db.users.v1';
-const DB_SESSION = 'nutriflow.db.session.v1';
+/* Версия ключей v2 отсекает старые склеенные данные из прошлых тестов */
+const DB_USERS   = 'nutriflow.db.users.v2';
+const DB_SESSION = 'nutriflow.db.session.v2';
 
-const dbKey = (uid, domain) => `nutriflow.db.${uid}.${domain}.v1`;
+const dbKey = (uid, domain) => `nutriflow.db.${uid}.${domain}.v2`;
 
 const loadUsers    = () => loadJSON(DB_USERS, []);
 const setSession   = (id) => saveJSON(DB_SESSION, id);
 const clearSession = () => localStorage.removeItem(DB_SESSION);
-const scopeUid     = () => loadJSON(DB_SESSION, null) || 'guest';
 
 const currentUser = () => {
   const id = loadJSON(DB_SESSION, null);
-  return id ? loadUsers().find((u) => u.id === id) || null : null;
+  if (!id) return null;
+  return loadUsers().find((u) => u.id === id) || null;
 };
 
-const uidFrom = (email) => 'u-' + email.replace(/[^a-z0-9@.]/g, '');
+/* Если сессия указывает на несуществующего пользователя, сбрасываем в guest */
+const scopeUid = () => {
+  const user = currentUser();
+  return user ? user.id : 'guest';
+};
+
+/* Надёжная генерация уникального ID без потери символов и коллизий */
+const generateUid = (email) => {
+  let hash = 0;
+  for (let i = 0; i < email.length; i++) {
+    hash = (hash << 5) - hash + email.charCodeAt(i);
+    hash |= 0;
+  }
+  const randomSuffix = Math.random().toString(36).slice(2, 7);
+  return `u_${Math.abs(hash).toString(36)}_${randomSuffix}`;
+};
 
 function registerUser(name, email, password) {
   const users = loadUsers();
@@ -89,13 +106,23 @@ function registerUser(name, email, password) {
   if (users.some((u) => u.email === clean)) {
     return { error: 'Пользователь с такой почтой уже зарегистрирован — попробуйте войти.' };
   }
-  const user = { id: uidFrom(clean), name: name.trim(), email: clean, password };
+  const user = {
+    id: generateUid(clean),
+    name: name.trim(),
+    email: clean,
+    password,
+  };
   users.push(user);
   saveJSON(DB_USERS, users);
-  migrateLegacy(user.id);
-  migrateGuestTo(user.id);  
+
+  /* Инициализируем личные пустые хранилища для нового аккаунта */
+  saveJSON(dbKey(user.id, 'diary'), {});
+  saveJSON(dbKey(user.id, 'history'), []);
+  saveJSON(dbKey(user.id, 'weight'), []);
+  saveJSON(dbKey(user.id, 'goals'), { ...GOALS });
+
   setSession(user.id);
-  LOG('Зарегистрирован пользователь, uid =', user.id);
+  LOG('Зарегистрирован новый пользователь:', user.email, '| uid =', user.id);
   return { user };
 }
 
@@ -105,76 +132,31 @@ function loginUser(email, password) {
   if (!user || user.password !== password) {
     return { error: 'Неверная почта или пароль. Проверьте ввод и попробуйте ещё раз.' };
   }
-  migrateLegacy(user.id);
-  migrateGuestTo(user.id);
   setSession(user.id);
-  LOG('Вход выполнен, uid =', user.id);
+  LOG('Вход выполнен:', user.email, '| uid =', user.id);
   return { user };
-}
-
-/* Полная очистка гостевых данных. Вызывается при выходе из аккаунта,
-   чтобы «осколки» гостевого дневника не переехали в следующий аккаунт. */
-function clearGuestData() {
-  ['diary', 'history', 'weight', 'goals'].forEach((domain) => {
-    localStorage.removeItem(dbKey('guest', domain));
-  });
-}
-
-const isEmptyValue = (value) => {
-  if (value === null) return true;
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'object') return Object.keys(value).length === 0;
-  return false;
-};
-
-/* Гостевые записи переезжают в аккаунт при ПЕРВОМ входе/регистрации.
-   После переноса гостевые данные удаляются, чтобы не «прилипнуть» к другому аккаунту. */
-function migrateGuestTo(uid) {
-  // Ничего не делаем — миграция отключена
-  return;
-}
-
-function migrateLegacy(uid) {
-  const legacy = loadJSON(`nutriflow.user.${uid}.v1`, null);
-  if (!legacy) return;
-  if (legacy.diary && loadJSON(dbKey(uid, 'diary'), null) === null) {
-    saveJSON(dbKey(uid, 'diary'), legacy.diary);
-  }
-  if (Array.isArray(legacy.history) && legacy.history.length) saveJSON(dbKey(uid, 'history'), legacy.history);
-  if (Array.isArray(legacy.weight)  && legacy.weight.length)  saveJSON(dbKey(uid, 'weight'),  legacy.weight);
-  if (legacy.goals) saveJSON(dbKey(uid, 'goals'), legacy.goals);
-  localStorage.removeItem(`nutriflow.user.${uid}.v1`);
 }
 
 /* ------------------ 3. ОБЛАСТЬ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ------------------ */
 function loadScope(uid) {
-  let diary = loadJSON(dbKey(uid, 'diary'), null);
-  if (diary === null) diary = uid === 'guest' ? seedDemoDiary() : {};
+  const diary = loadJSON(dbKey(uid, 'diary'), {});
   return {
-    diary,
+    diary:   diary && typeof diary === 'object' ? diary : {},
     history: loadJSON(dbKey(uid, 'history'), []),
     weight:  loadJSON(dbKey(uid, 'weight'), []),
     goals:   loadJSON(dbKey(uid, 'goals'), null) || { ...GOALS },
   };
 }
 
-const seedDemoDiary = () => ({
-  [dateKey(0)]: {
-    breakfast: [{ id: 'oatmeal-water', weight: 250 }, { id: 'coffee-milk', weight: 200 }],
-    lunch: [{ id: 'chicken-fillet-boil', weight: 150 }, { id: 'buckwheat-boiled', weight: 180 }, { id: 'tomato', weight: 120 }],
-    dinner: [{ id: 'tvorog-5', weight: 180 }, { id: 'banana', weight: 110 }],
-    snack: [],
-  },
-});
-
 /* ------------------ 4. СОСТОЯНИЕ ------------------ */
-migrateLegacy(scopeUid());
-
 const state = {
   uid: scopeUid(),
   date: dateKey(0),
   dayOffset: 0,
-  diary: {}, history: [], weight: [], goals: { ...GOALS },
+  diary: {},
+  history: [],
+  weight: [],
+  goals: { ...GOALS },
   modalMeal: null,
   modalTab: 'search',
   modalQuery: '',
@@ -182,33 +164,47 @@ const state = {
   weightTarget: null,
 };
 
-/* КРИТИЧЕСКИ ВАЖНО для изоляции: при любой смене пользователя полностью
-   сбрасываем state и читаем данные ЗАНОВО из хранилища нового uid. */
 function switchScope() {
   const newUid = scopeUid();
+  const scope = loadScope(newUid);
 
-  state.uid = newUid;
-  state.date = dateKey(0);
-  state.dayOffset = 0;
-  state.diary = {};
-  state.history = [];
-  state.weight = [];
-  state.goals = { ...GOALS };
-  state.modalMeal = null;
-  state.modalQuery = '';
+  state.uid          = newUid;
+  state.date         = dateKey(state.dayOffset);
+  state.diary        = scope.diary;
+  state.history      = scope.history;
+  state.weight       = scope.weight;
+  state.goals        = scope.goals;
+  state.modalMeal    = null;
+  state.modalQuery   = '';
   state.selected.clear();
   state.weightTarget = null;
 
-  const scope = loadScope(newUid);
-  state.diary   = scope.diary;
-  state.history = scope.history;
-  state.weight  = scope.weight;
-  state.goals   = scope.goals;
-
-  LOG('Активный пользователь:', newUid, '| ключ дневника:', dbKey(newUid, 'diary'));
+  renderUserBadge();
+  LOG('Активный профиль:', newUid, '| Ключ БД:', dbKey(newUid, 'diary'));
 }
 
-/* Первичная загрузка данных текущего пользователя */
+/* Индикатор текущего аккаунта в сайдбаре, чтобы всегда видеть, чей дневник открыт */
+function renderUserBadge() {
+  const foot = $('.sidebar__foot');
+  if (!foot) return;
+
+  let badge = $('#sidebar-user-badge');
+  if (!badge) {
+    badge = document.createElement('a');
+    badge.id = 'sidebar-user-badge';
+    badge.href = 'profile.html';
+    badge.className = 'sidebar__note';
+    badge.style.fontWeight = '700';
+    badge.style.color = 'var(--clr-teal-deep)';
+    foot.prepend(badge);
+  }
+
+  const user = currentUser();
+  badge.textContent = user
+    ? `Аккаунт: ${user.name} (${user.email})`
+    : 'Режим: Гость (войти в профиль)';
+}
+
 switchScope();
 
 const dayEntries = () => {
@@ -219,14 +215,20 @@ const dayEntries = () => {
 };
 
 const persistDiary = () => {
+  /* Перед записью сверяем актуальный uid из сессии */
+  state.uid = scopeUid();
   const key = dbKey(state.uid, 'diary');
   saveJSON(key, state.diary);
   LOG('Дневник сохранён →', key);
 };
 
-const persistHistory = () => saveJSON(dbKey(state.uid, 'history'), state.history);
+const persistHistory = () => {
+  state.uid = scopeUid();
+  saveJSON(dbKey(state.uid, 'history'), state.history);
+};
 
 function rerenderAll() {
+  renderUserBadge();
   renderDate();
   renderMeals();
   renderSummary();
@@ -237,7 +239,7 @@ function dayTotals() {
   const totals = { kcal: 0, p: 0, f: 0, c: 0 };
   const day = dayEntries();
   MEALS.forEach(({ key }) => {
-    day[key].forEach(({ id, weight }) => {
+    (day[key] || []).forEach(({ id, weight }) => {
       const product = PRODUCT_MAP.get(id);
       if (!product) return;
       const portion = calcPortion(product, weight);
@@ -287,7 +289,16 @@ function mealItemTemplate(item, index) {
   const product = PRODUCT_MAP.get(item.id);
   if (!product) return '';
   const portion = calcPortion(product, item.weight);
-  return `<li class="meal-item" data-index="${index}"> <span class="meal-item__name">${product.name}</span> <button class="meal-item__weight" data-action="edit-weight" title="Нажмите, чтобы изменить граммовку">${item.weight} г</button> <span class="meal-item__cals">${portion.kcal} ккал</span> <button class="meal-item__delete" data-action="delete" aria-label="Удалить «${product.name}»"> <svg viewBox="0 0 24 24" aria-hidden="true"> <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/> </svg> </button> </li>`;
+  return `<li class="meal-item" data-index="${index}">
+    <span class="meal-item__name">${product.name}</span>
+    <button class="meal-item__weight" data-action="edit-weight" title="Нажмите, чтобы изменить граммовку">${item.weight} г</button>
+    <span class="meal-item__cals">${portion.kcal} ккал</span>
+    <button class="meal-item__delete" data-action="delete" aria-label="Удалить «${product.name}»">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+      </svg>
+    </button>
+  </li>`;
 }
 
 function renderMeals() {
@@ -296,7 +307,7 @@ function renderMeals() {
     const list  = $(`[data-meal-list="${key}"]`);
     const total = $(`[data-meal-total="${key}"]`);
     if (!list) return;
-    const items = day[key];
+    const items = day[key] || [];
     list.innerHTML = items.length
       ? items.map(mealItemTemplate).join('')
       : '<li class="meal-card__empty">Пока ничего не добавлено</li>';
@@ -347,7 +358,16 @@ function switchTab(tab) {
 
 function rowTemplate(product, lastWeight) {
   const isSelected = state.selected.has(product.id);
-  return `<li class="modal__item"> <button class="modal__item-btn ${isSelected ? 'is-selected' : ''}" data-product="${product.id}" data-last="${lastWeight ?? ''}"> <span class="modal__item-name">${product.name}</span> ${lastWeight ? `<span class="modal__item-last">последний раз ${lastWeight} г</span>` : ''} <span class="modal__item-kcal">${product.kcal} ккал</span> <span class="modal__item-check" aria-hidden="true"> <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> </span> </button> </li>`;
+  return `<li class="modal__item">
+    <button class="modal__item-btn ${isSelected ? 'is-selected' : ''}" data-product="${product.id}" data-last="${lastWeight ?? ''}">
+      <span class="modal__item-name">${product.name}</span>
+      ${lastWeight ? `<span class="modal__item-last">последний раз ${lastWeight} г</span>` : ''}
+      <span class="modal__item-kcal">${product.kcal} ккал</span>
+      <span class="modal__item-check" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </span>
+    </button>
+  </li>`;
 }
 
 function renderModalList() {
@@ -361,8 +381,8 @@ function renderModalList() {
 function searchRows() {
   const query = state.modalQuery.trim().toLowerCase();
   const source = query
-    ? PRODUCTS_DB.filter((p) => p.name.toLowerCase().includes(query))
-    : PRODUCTS_DB;
+    ? SAFE_PRODUCTS.filter((p) => p.name.toLowerCase().includes(query))
+    : SAFE_PRODUCTS;
   return source.map((p) => rowTemplate(p, null));
 }
 
@@ -500,7 +520,8 @@ function setAuthMode(mode) {
   }
 }
 
-function submitAuth() {
+function submitAuth(event) {
+  if (event) event.preventDefault();
   const errorBox = $('#auth-error');
   errorBox.hidden = true;
   const fail = (text) => { errorBox.textContent = text; errorBox.hidden = false; };
@@ -538,7 +559,7 @@ function renderProfile() {
     $('#user-name').textContent = user.name;
     $('#user-email').textContent = user.email;
   } else {
-    setAuthMode(null);
+    setAuthMode('login');
     $('#auth-name').value = '';
     $('#auth-email').value = '';
     $('#auth-pass').value = '';
@@ -550,30 +571,25 @@ function initAuth() {
   const profileView = $('#profile-view');
   if (!authView || !profileView) return;
 
-  $('#auth-login-btn').addEventListener('click', () =>
-    setAuthMode(authMode === 'login' ? null : 'login'));
-  $('#auth-register-btn').addEventListener('click', () =>
-    setAuthMode(authMode === 'register' ? null : 'register'));
+  $('#auth-login-btn').addEventListener('click', () => setAuthMode('login'));
+  $('#auth-register-btn').addEventListener('click', () => setAuthMode('register'));
   $('#auth-submit').addEventListener('click', submitAuth);
+  $('#auth-form')?.addEventListener('submit', submitAuth);
 
- /* Выход: чистим сессию, очищаем гостевые данные
-   (чтобы следующий гость начал с пустого дневника),
-   перезагружаем state и перерисовываем */
-$('#logout-btn').addEventListener('click', () => {
-  clearSession();
-  clearGuestData();
-  switchScope();
-  renderProfile();
-  rerenderAll();
-  LOG('Выход из аккаунта. Теперь вы гость.');
-});
+  $('#logout-btn').addEventListener('click', () => {
+    clearSession();
+    switchScope();
+    renderProfile();
+    rerenderAll();
+    LOG('Выход из аккаунта выполнен.');
+  });
 
   $('#goal-btn').addEventListener('click', () => { /* TODO: редактор целей */ });
 
   renderProfile();
 }
 
-/* ------------------ 11. САЙДБАР, СОБЫТИЯ, СТАРТ ------------------ */
+/* ------------------ 11. САЙДБАР, СОБЫТИЯ, СИНХРОНИЗАЦИЯ ------------------ */
 function initSidebar() {
   const sidebar  = $('#sidebar');
   const backdrop = $('#sidebar-backdrop');
@@ -661,6 +677,19 @@ function initDiaryEvents() {
     else if (modalEl && !modalEl.hidden)    closeModal();
   });
 }
+
+/* Синхронизация при возврате по кнопке «Назад» (bfcache) и между вкладками */
+window.addEventListener('pageshow', () => {
+  switchScope();
+  renderProfile();
+  rerenderAll();
+});
+
+window.addEventListener('storage', () => {
+  switchScope();
+  renderProfile();
+  rerenderAll();
+});
 
 /* Старт приложения */
 initSidebar();
