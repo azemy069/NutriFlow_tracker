@@ -1,12 +1,19 @@
 /* ==========================================================================
-   NUTRIFLOW — логика приложения (ВЕРСИЯ 4 — строгая изоляция аккаунтов)
-   ========================================================================== */
+NUTRIFLOW — логика приложения (ВЕРСИЯ 6 — мастер цели из 9 шагов)
+Данные каждого пользователя лежат раздельно и структурированно:
+nutriflow.db.<uid>.diary.v1    — блюда по дням
+nutriflow.db.<uid>.history.v1  — недавние продукты
+nutriflow.db.<uid>.weight.v2   — журнал веса: одна запись на день { date, kg, ts }
+nutriflow.db.<uid>.goals.v2    — цели (ккал и БЖУ)
+nutriflow.db.<uid>.profile.v2  — анкета цели: цель, пол, дата, рост, вес,
+                                 целевой вес, активность, темп
+========================================================================== */
 'use strict';
 
-const APP_VERSION = '4.0';
+const APP_VERSION = '6.1';
 const LOG = (...args) => console.log(
   `%c[NutriFlow v${APP_VERSION}]`,
-  'color:#0e7d72;font-weight:bold',
+  'color:#0e7d72;font-weight:bold', 
   ...args
 );
 
@@ -70,7 +77,6 @@ const dateTitle = (key) => {
 /* Версия ключей v2 отсекает старые склеенные данные из прошлых тестов */
 const DB_USERS   = 'nutriflow.db.users.v2';
 const DB_SESSION = 'nutriflow.db.session.v2';
-
 const dbKey = (uid, domain) => `nutriflow.db.${uid}.${domain}.v2`;
 
 const loadUsers    = () => loadJSON(DB_USERS, []);
@@ -89,7 +95,7 @@ const scopeUid = () => {
   return user ? user.id : 'guest';
 };
 
-/* Надёжная генерация уникального ID без потери символов и коллизий */
+/* Надёжная генерация уникального ID без коллизий */
 const generateUid = (email) => {
   let hash = 0;
   for (let i = 0; i < email.length; i++) {
@@ -106,21 +112,14 @@ function registerUser(name, email, password) {
   if (users.some((u) => u.email === clean)) {
     return { error: 'Пользователь с такой почтой уже зарегистрирован — попробуйте войти.' };
   }
-  const user = {
-    id: generateUid(clean),
-    name: name.trim(),
-    email: clean,
-    password,
-  };
+  const user = { id: generateUid(clean), name: name.trim(), email: clean, password };
   users.push(user);
   saveJSON(DB_USERS, users);
-
-  /* Инициализируем личные пустые хранилища для нового аккаунта */
+  /* Личные пустые хранилища нового аккаунта */
   saveJSON(dbKey(user.id, 'diary'), {});
   saveJSON(dbKey(user.id, 'history'), []);
   saveJSON(dbKey(user.id, 'weight'), []);
   saveJSON(dbKey(user.id, 'goals'), { ...GOALS });
-
   setSession(user.id);
   LOG('Зарегистрирован новый пользователь:', user.email, '| uid =', user.id);
   return { user };
@@ -145,6 +144,7 @@ function loadScope(uid) {
     history: loadJSON(dbKey(uid, 'history'), []),
     weight:  loadJSON(dbKey(uid, 'weight'), []),
     goals:   loadJSON(dbKey(uid, 'goals'), null) || { ...GOALS },
+    profile: loadJSON(dbKey(uid, 'profile'), null),
   };
 }
 
@@ -157,6 +157,7 @@ const state = {
   history: [],
   weight: [],
   goals: { ...GOALS },
+  profile: null,
   modalMeal: null,
   modalTab: 'search',
   modalQuery: '',
@@ -167,18 +168,17 @@ const state = {
 function switchScope() {
   const newUid = scopeUid();
   const scope = loadScope(newUid);
-
   state.uid          = newUid;
   state.date         = dateKey(state.dayOffset);
   state.diary        = scope.diary;
   state.history      = scope.history;
   state.weight       = scope.weight;
   state.goals        = scope.goals;
+  state.profile      = scope.profile;
   state.modalMeal    = null;
   state.modalQuery   = '';
   state.selected.clear();
   state.weightTarget = null;
-
   renderUserBadge();
   LOG('Активный профиль:', newUid, '| Ключ БД:', dbKey(newUid, 'diary'));
 }
@@ -187,7 +187,6 @@ function switchScope() {
 function renderUserBadge() {
   const foot = $('.sidebar__foot');
   if (!foot) return;
-
   let badge = $('#sidebar-user-badge');
   if (!badge) {
     badge = document.createElement('a');
@@ -198,7 +197,6 @@ function renderUserBadge() {
     badge.style.color = 'var(--clr-teal-deep)';
     foot.prepend(badge);
   }
-
   const user = currentUser();
   badge.textContent = user
     ? `Аккаунт: ${user.name} (${user.email})`
@@ -291,7 +289,8 @@ function mealItemTemplate(item, index) {
   const portion = calcPortion(product, item.weight);
   return `<li class="meal-item" data-index="${index}">
     <span class="meal-item__name">${product.name}</span>
-    <button class="meal-item__weight" data-action="edit-weight" title="Нажмите, чтобы изменить граммовку">${item.weight} г</button>
+    <button class="meal-item__weight" data-action="edit-weight"
+      title="Нажмите, чтобы изменить граммовку">${item.weight} г</button>
     <span class="meal-item__cals">${portion.kcal} ккал</span>
     <button class="meal-item__delete" data-action="delete" aria-label="Удалить «${product.name}»">
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -359,7 +358,8 @@ function switchTab(tab) {
 function rowTemplate(product, lastWeight) {
   const isSelected = state.selected.has(product.id);
   return `<li class="modal__item">
-    <button class="modal__item-btn ${isSelected ? 'is-selected' : ''}" data-product="${product.id}" data-last="${lastWeight ?? ''}">
+    <button class="modal__item-btn ${isSelected ? 'is-selected' : ''}"
+      data-product="${product.id}" data-last="${lastWeight ?? ''}">
       <span class="modal__item-name">${product.name}</span>
       ${lastWeight ? `<span class="modal__item-last">последний раз ${lastWeight} г</span>` : ''}
       <span class="modal__item-kcal">${product.kcal} ккал</span>
@@ -584,12 +584,389 @@ function initAuth() {
     LOG('Выход из аккаунта выполнен.');
   });
 
-  $('#goal-btn').addEventListener('click', () => { /* TODO: редактор целей */ });
+  /* Кнопка «Изменить цель» открывает мастер из 9 шагов */
+  $('#goal-btn').addEventListener('click', wizardOpen);
 
   renderProfile();
 }
 
-/* ------------------ 11. САЙДБАР, СОБЫТИЯ, СИНХРОНИЗАЦИЯ ------------------ */
+/* ==========================================================================
+   11. МАСТЕР ПОСТАНОВКИ ЦЕЛИ — 9 ШАГОВ
+   1 цель · 2 пол · 3 дата рождения · 4 рост · 5 вес · 6 целевой вес ·
+   7 образ жизни · 8 темп изменений · 9 итоговый план
+   Ответы сохраняются в nutriflow.db.<uid>.profile.v2, текущий вес
+   дополнительно попадает в журнал nutriflow.db.<uid>.weight.v2.
+   ========================================================================== */
+const WIZARD_TOTAL = 9;
+const WHEEL_ITEM_H = 56;
+const WHEEL_VISIBLE = 5;
+
+const wizardData = {
+  goal: null,
+  sex: null,
+  birth: { day: 1, month: 1, year: 2000 },
+  height: 170,
+  weight: 70,
+  target: 65,
+  activity: null,
+  pace: 0.5,
+};
+
+let wizardStep = 1;
+let wheelsReady = false;
+const wheels = new Map();
+
+const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+/* ---------- Колесо выбора: скролл со снапом по центру ---------- */
+function createWheel(host, values, initial, format) {
+  const viewport = document.createElement('div');
+  viewport.className = 'wheel__viewport';
+  viewport.tabIndex = 0;
+
+  /* Пустые блоки сверху и снизу, чтобы крайние значения доходили до центра */
+  const pad = () => {
+    const p = document.createElement('div');
+    p.className = 'wheel__pad';
+    p.style.height = `${(WHEEL_ITEM_H * (WHEEL_VISIBLE - 1)) / 2}px`;
+    return p;
+  };
+
+  viewport.append(pad());
+  values.forEach((value, i) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'wheel__item';
+    item.style.height = `${WHEEL_ITEM_H}px`;
+    item.dataset.index = String(i);
+    item.textContent = format ? format(value) : String(value);
+    item.addEventListener('click', () => scrollToIndex(i));
+    viewport.append(item);
+  });
+  viewport.append(pad());
+  host.append(viewport);
+
+  const wheel = { host, viewport, values, index: 0 };
+  wheels.set(host.dataset.wheel, wheel);
+
+  function scrollToIndex(i, smooth = true) {
+    wheel.index = Math.max(0, Math.min(values.length - 1, i));
+    viewport.scrollTo({ top: wheel.index * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
+    paint();
+  }
+
+  /* Подсветка и «таяние» значений по мере удаления от центра */
+  function paint() {
+    const center = viewport.scrollTop / WHEEL_ITEM_H;
+    viewport.querySelectorAll('.wheel__item').forEach((el) => {
+      const d = Math.abs(Number(el.dataset.index) - center);
+      el.classList.toggle('is-active', d < .5);
+      el.style.opacity = d < .5 ? '1' : d < 1.5 ? '.55' : '.3';
+    });
+  }
+
+  /* Доснап после остановки скролла (свайп, тач, перетаскивание полосы) */
+  let snapTimer = 0;
+  viewport.addEventListener('scroll', () => {
+    paint();
+    clearTimeout(snapTimer);
+    snapTimer = setTimeout(
+      () => scrollToIndex(Math.round(viewport.scrollTop / WHEEL_ITEM_H)),
+      120
+    );
+  }, { passive: true });
+
+  /* ФИКС прыжков через значение: колесо мыши перехватывается вручную.
+     ЛЮБОЕ событие колеса (дельта 100, 160, 240 px — не важно) даёт
+     строго ОДИН шаг: дельта копится до порога чувствительности,
+     остаток сбрасывается, а замок 60 мс гасит серийные события.
+     Трекпад при этом листает плавно, потому что присылает много
+     мелких событий, и каждое преодолевает порог по очереди. */
+  let wheelAcc = 0;
+  let wheelLock = 0;
+  viewport.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1;
+    wheelAcc += event.deltaY * unit;
+    const STEP_PX = 60;                 // порог чувствительности
+    if (Math.abs(wheelAcc) < STEP_PX) return;
+    const now = performance.now();
+    if (now - wheelLock < 60) return;   // серия событий подряд — подождать
+    wheelLock = now;
+    const dir = wheelAcc > 0 ? 1 : -1;  // направление прокрутки
+    wheelAcc = 0;                       // одно событие — максимум один шаг
+    scrollToIndex(wheel.index + dir);
+  }, { passive: false });
+
+  viewport.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); scrollToIndex(wheel.index + 1); }
+    if (event.key === 'ArrowUp')   { event.preventDefault(); scrollToIndex(wheel.index - 1); }
+  });
+
+  wheel.set = (value, smooth = false) => {
+    const idx = values.indexOf(value);
+    scrollToIndex(idx === -1 ? 0 : idx, smooth);
+  };
+  wheel.get = () => values[wheel.index];
+
+  requestAnimationFrame(() => wheel.set(initial, false));
+  return wheel;
+}
+
+/* Создание всех колёс один раз при первом открытии мастера */
+function ensureWheels() {
+  if (wheelsReady) return;
+  wheelsReady = true;
+  const MONTHS = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь',
+                  'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
+  createWheel($('[data-wheel="b-day"]'),   range(1, 31),      wizardData.birth.day);
+  createWheel($('[data-wheel="b-month"]'), range(1, 12),      wizardData.birth.month, (v) => MONTHS[v - 1]);
+  createWheel($('[data-wheel="b-year"]'),  range(1900, 2026), wizardData.birth.year);
+  createWheel($('[data-wheel="h-int"]'),   range(100, 220),   Math.floor(wizardData.height));
+  createWheel($('[data-wheel="h-dec"]'),   range(0, 9),       Math.round((wizardData.height % 1) * 10));
+  createWheel($('[data-wheel="w-int"]'),   range(30, 200),    Math.floor(wizardData.weight));
+  createWheel($('[data-wheel="w-dec"]'),   range(0, 9),       Math.round((wizardData.weight % 1) * 10));
+  createWheel($('[data-wheel="t-int"]'),   range(30, 200),    Math.floor(wizardData.target));
+  createWheel($('[data-wheel="t-dec"]'),   range(0, 9),       Math.round((wizardData.target % 1) * 10));
+}
+
+/* Подставить сохранённые ранее ответы в колёса */
+function syncWheels() {
+  if (!wheelsReady) return;
+  wheels.get('b-day').set(wizardData.birth.day);
+  wheels.get('b-month').set(wizardData.birth.month);
+  wheels.get('b-year').set(wizardData.birth.year);
+  wheels.get('h-int').set(Math.floor(wizardData.height));
+  wheels.get('h-dec').set(Math.round((wizardData.height % 1) * 10));
+  wheels.get('w-int').set(Math.floor(wizardData.weight));
+  wheels.get('w-dec').set(Math.round((wizardData.weight % 1) * 10));
+  wheels.get('t-int').set(Math.floor(wizardData.target));
+  wheels.get('t-dec').set(Math.round((wizardData.target % 1) * 10));
+}
+
+function wizardGo(step) {
+  wizardStep = step;
+  $$('.wizard__step').forEach((section) => {
+    section.hidden = Number(section.dataset.step) !== step;
+  });
+  const fill = $('#wizard-progress');
+  if (fill) fill.style.width = `${(step / WIZARD_TOTAL) * 100}%`;
+  if (step === 7) syncActivityPick();
+  if (step === 8) updatePaceUI();
+  if (step === WIZARD_TOTAL) renderResult();
+}
+
+/* Подсветка ранее выбранного варианта активности */
+const syncActivityPick = () => {
+  $$('.wizard__option[data-activity]').forEach((o) => {
+    o.classList.toggle('is-picked', o.dataset.activity === wizardData.activity);
+  });
+};
+
+function wizardOpen() {
+  const root = $('#goal-wizard');
+  if (!root) return;
+
+  /* Предзаполнение из сохранённой анкеты пользователя */
+  const p = state.profile;
+  if (p) {
+    wizardData.goal = p.goal ?? null;
+    wizardData.sex  = p.sex ?? null;
+    if (p.birth) wizardData.birth = { ...p.birth };
+    if (typeof p.heightCm === 'number')   wizardData.height = p.heightCm;
+    if (typeof p.weightKg === 'number')   wizardData.weight = p.weightKg;
+    if (typeof p.targetKg === 'number')   wizardData.target = p.targetKg;
+    if (p.activity)                       wizardData.activity = p.activity;
+    if (typeof p.paceKgWeek === 'number') wizardData.pace = p.paceKgWeek;
+  }
+
+  ensureWheels();
+  syncWheels();
+  const slider = $('#pace-slider');
+  if (slider) slider.value = String(wizardData.pace);
+  updatePaceUI();
+
+  root.hidden = false;
+  document.body.classList.add('no-scroll');
+  wizardGo(1);
+  LOG('Мастер цели открыт для:', state.uid);
+}
+
+function wizardClose() {
+  const root = $('#goal-wizard');
+  if (!root) return;
+  root.hidden = true;
+  document.body.classList.remove('no-scroll');
+}
+
+/* Журнал веса: одна запись на день, свежая перезаписывает сегодняшнюю */
+function pushWeightRecord(kg) {
+  const list = Array.isArray(state.weight) ? state.weight : [];
+  const today = dateKey(0);
+  const existing = list.find((record) => record.date === today);
+  if (existing) {
+    existing.kg = kg;
+    existing.ts = Date.now();
+  } else {
+    list.unshift({ date: today, kg, ts: Date.now() });
+  }
+  state.weight = list.slice(0, 365);
+  saveJSON(dbKey(state.uid, 'weight'), state.weight);
+  LOG('Запись веса сохранена →', dbKey(state.uid, 'weight'));
+}
+
+/* ---------- Шаг 8: слайдер темпа ---------- */
+const trimNum = (n) => {
+  const s = n.toFixed(1);
+  return s.endsWith('.0') ? s.slice(0, -2) : s.replace('.', ',');
+};
+
+const paceCaption = (v) => {
+  if (v <= 0.2) return 'Надежно';
+  if (v <= 0.4) return 'Умеренно';
+  if (v <= 0.6) return 'Сбалансировано';
+  if (v <= 0.8) return 'Заметно';
+  return 'Быстро';
+};
+
+function updatePaceUI() {
+  const slider  = $('#pace-slider');
+  const value   = $('#pace-value');
+  const caption = $('#pace-caption');
+  if (!slider) return;
+  const v = Number(slider.value);
+  if (value)   value.textContent = `${v.toFixed(1).replace('.', ',')} кг/неделя`;
+  if (caption) caption.textContent = paceCaption(v);
+  const percent = ((v - 0.1) / 0.9) * 100;
+  slider.style.background =
+    `linear-gradient(90deg, #0a4b2c ${percent}%, #b9cdc4 ${percent}%)`;
+}
+
+/* ---------- Шаг 9: итоговый план с графиком и датой цели ---------- */
+function renderResult() {
+  const current = wheels.get('w-int').get() + wheels.get('w-dec').get() / 10;
+  const target  = wheels.get('t-int').get() + wheels.get('t-dec').get() / 10;
+  const diff  = current - target;                       // > 0 — похудение
+  const weeks = Math.abs(diff) / (wizardData.pace || 0.5);
+  const days  = Math.round(weeks * 7);
+  const finish = new Date();
+  finish.setDate(finish.getDate() + days);
+
+  const weightEl = $('#wizard-result-weight');
+  if (weightEl) weightEl.textContent = `${trimNum(target)} кг`;
+
+  const planEl = $('#wizard-result-date');
+  if (planEl) {
+    planEl.textContent = days > 0
+      ? `Вы достигнете своей цели к ${finish.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
+      : 'Цель достигнута — просто держим вес!';
+  }
+
+  const after = new Date(finish);
+  after.setMonth(after.getMonth() + 1);
+  const months = $('#wizard-months');
+  if (months) {
+    const fmt = (d) => d.toLocaleDateString('ru-RU', { month: 'short' });
+    months.innerHTML =
+      `<span>${fmt(new Date())}</span><span>${fmt(finish)}</span><span>${fmt(after)}</span>`;
+  }
+
+  const chart = $('#wizard-chart');
+  if (chart) {
+    const losing  = diff > 0.05;
+    const gaining = diff < -0.05;
+    const yStart  = losing ? 50 : gaining ? 190 : 120;
+    const first   = (losing || gaining)
+      ? `M0 ${yStart} L240 ${(yStart + 120) / 2} L370 120`
+      : `M0 120 L370 120`;
+    chart.innerHTML = `
+      <svg viewBox="0 0 600 240">
+        <path d="${first}" class="wizard__chart-line wizard__chart-line--active"/>
+        <path d="M400 120 L600 120" class="wizard__chart-line wizard__chart-line--plan"/>
+        <circle cx="370" cy="120" r="14" class="wizard__chart-dot--end"/>
+        <circle cx="400" cy="120" r="12" class="wizard__chart-dot--start"/>
+      </svg>`;
+  }
+}
+
+/* Финал: анкета и вес уезжают в личную базу пользователя */
+function wizardFinish() {
+  wizardData.birth = {
+    day:   wheels.get('b-day').get(),
+    month: wheels.get('b-month').get(),
+    year:  wheels.get('b-year').get(),
+  };
+  wizardData.height = wheels.get('h-int').get() + wheels.get('h-dec').get() / 10;
+  wizardData.weight = wheels.get('w-int').get() + wheels.get('w-dec').get() / 10;
+  wizardData.target = wheels.get('t-int').get() + wheels.get('t-dec').get() / 10;
+
+  const profile = {
+    goal:       wizardData.goal,
+    sex:        wizardData.sex,
+    birth:      { ...wizardData.birth },
+    heightCm:   wizardData.height,
+    weightKg:   wizardData.weight,
+    targetKg:   wizardData.target,
+    activity:   wizardData.activity,
+    paceKgWeek: wizardData.pace,
+    updatedAt:  Date.now(),
+  };
+
+  state.profile = profile;
+  saveJSON(dbKey(state.uid, 'profile'), profile);
+  pushWeightRecord(profile.weightKg);
+  LOG('Анкета сохранена →', dbKey(state.uid, 'profile'), profile);
+  wizardClose();
+}
+
+function initWizard() {
+  const root = $('#goal-wizard');
+  if (!root) return;
+
+  /* Делегирование: дымка, карточки-ответы, «Далее», «Продолжить» */
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-wizard-close]')) { wizardClose(); return; }
+
+    const option = event.target.closest('.wizard__option');
+    if (option) {
+      if (option.dataset.goal) { wizardData.goal = option.dataset.goal; wizardGo(wizardStep + 1); return; }
+      if (option.dataset.sex)  { wizardData.sex  = option.dataset.sex;  wizardGo(wizardStep + 1); return; }
+      if (option.dataset.activity) {
+        wizardData.activity = option.dataset.activity;
+        $$('.wizard__option[data-activity]', root).forEach((o) => o.classList.remove('is-picked'));
+        option.classList.add('is-picked');
+        setTimeout(() => wizardGo(wizardStep + 1), 280);   // салатовая вспышка как в референсе
+        return;
+      }
+    }
+
+    if (event.target.closest('[data-wizard-next]')) {
+      if (wizardStep < WIZARD_TOTAL) wizardGo(wizardStep + 1);
+      return;
+    }
+
+    if (event.target.closest('[data-wizard-finish]')) wizardFinish();
+  });
+
+  /* Стрелка назад: с 1-го шага закрывает мастер */
+  $('#wizard-back')?.addEventListener('click', () => {
+    if (wizardStep === 1) wizardClose();
+    else wizardGo(wizardStep - 1);
+  });
+
+  /* Слайдер темпа: метка и заливка дорожки обновляются сразу */
+  $('#pace-slider')?.addEventListener('input', (event) => {
+    wizardData.pace = Number(event.target.value);
+    updatePaceUI();
+  });
+
+  /* Escape закрывает мастер */
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !root.hidden) wizardClose();
+  });
+}
+
+/* ------------------ 12. САЙДБАР, СОБЫТИЯ, СИНХРОНИЗАЦИЯ ------------------ */
 function initSidebar() {
   const sidebar  = $('#sidebar');
   const backdrop = $('#sidebar-backdrop');
@@ -696,4 +1073,5 @@ initSidebar();
 initTodayDate();
 initDiaryEvents();
 initAuth();
+initWizard();
 rerenderAll();

@@ -130,6 +130,129 @@
     <span>© 2026 NutriFlow · дипломный проект</span>
     <span>Сделано с заботой о вашем рационе</span>
   </footer>
+  <!-- ========== МАСТЕР ПОСТАНОВКИ ЦЕЛИ (5 шагов) ========== -->
+<div class="wizard" id="goal-wizard" hidden role="dialog" aria-modal="true" aria-label="Постановка цели">
+  <!-- Дымка поверх сайта: вопросы читаются чётче -->
+  <div class="wizard__veil" data-wizard-close></div>
+
+  <div class="wizard__sheet">
+    <header class="wizard__top">
+      <button class="wizard__back" id="wizard-back" type="button" aria-label="Назад">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="wizard__progress" aria-hidden="true">
+        <span class="wizard__progress-fill" id="wizard-progress"></span>
+      </div>
+    </header>
+
+    <!-- Шаг 1. Цель -->
+    <section class="wizard__step" data-step="1">
+      <h2 class="wizard__title">Какая у тебя цель?</h2>
+      <div class="wizard__options">
+        <button class="wizard__option" type="button" data-goal="lose">Хочу похудеть</button>
+        <button class="wizard__option" type="button" data-goal="maintain">Поддерживать вес / питаться правильно</button>
+        <button class="wizard__option" type="button" data-goal="gain">Набрать мышечную массу / набрать вес</button>
+      </div>
+    </section>
+
+    <!-- Шаг 2. Пол -->
+    <section class="wizard__step" data-step="2" hidden>
+      <h2 class="wizard__title">Пол</h2>
+      <div class="wizard__options wizard__options--pair">
+        <button class="wizard__option" type="button" data-sex="male">Мужчина</button>
+        <button class="wizard__option" type="button" data-sex="female">Женщина</button>
+      </div>
+    </section>
+
+    <!-- Шаг 3. Дата рождения (колесо: день / месяц / год) -->
+    <section class="wizard__step" data-step="3" hidden>
+      <h2 class="wizard__title">Дата рождения</h2>
+      <div class="wheel-row">
+        <div class="wheel" data-wheel="b-day"></div>
+        <div class="wheel" data-wheel="b-month"></div>
+        <div class="wheel" data-wheel="b-year"></div>
+        <span class="wheel-row__pill" aria-hidden="true"></span>
+      </div>
+      <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
+    </section>
+
+    <!-- Шаг 4. Рост (колесо: см , десятые) -->
+    <section class="wizard__step" data-step="4" hidden>
+      <h2 class="wizard__title">Рост</h2>
+      <div class="wheel-row">
+        <div class="wheel" data-wheel="h-int"></div>
+        <span class="wheel-row__static">,</span>
+        <div class="wheel" data-wheel="h-dec"></div>
+        <span class="wheel-row__static">см</span>
+        <span class="wheel-row__pill" aria-hidden="true"></span>
+      </div>
+      <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
+    </section>
+
+    <!-- Шаг 5. Вес (колесо: кг , десятые) -->
+    <section class="wizard__step" data-step="5" hidden>
+      <h2 class="wizard__title">Вес</h2>
+      <div class="wheel-row">
+        <div class="wheel" data-wheel="w-int"></div>
+        <span class="wheel-row__static">,</span>
+        <div class="wheel" data-wheel="w-dec"></div>
+        <span class="wheel-row__static">кг</span>
+        <span class="wheel-row__pill" aria-hidden="true"></span>
+      </div>
+      <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Сохранить</button>
+    </section>
+        <!-- Шаг 6. Целевой вес -->
+    <section class="wizard__step" data-step="6" hidden>
+      <h2 class="wizard__title">Целевой вес?</h2>
+      <div class="wheel-row">
+        <div class="wheel" data-wheel="t-int"></div>
+        <span class="wheel-row__static">,</span>
+        <div class="wheel" data-wheel="t-dec"></div>
+        <span class="wheel-row__static">кг</span>
+        <span class="wheel-row__pill" aria-hidden="true"></span>
+      </div>
+      <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
+    </section>
+
+    <!-- Шаг 7. Образ жизни -->
+    <section class="wizard__step" data-step="7" hidden>
+      <h2 class="wizard__title">День обычно:</h2>
+      <div class="wizard__options">
+        <button class="wizard__option" type="button" data-activity="sedentary">Сидячий</button>
+        <button class="wizard__option" type="button" data-activity="light">Немного активный</button>
+        <button class="wizard__option" type="button" data-activity="active">Часто активный</button>
+        <button class="wizard__option" type="button" data-activity="training">Регулярные тренировки</button>
+      </div>
+    </section>
+
+    <!-- Шаг 8. Темп изменений -->
+    <section class="wizard__step" data-step="8" hidden>
+      <h2 class="wizard__title">Темп изменений:</h2>
+      <div class="pace">
+        <p class="pace__value" id="pace-value">0,5 кг/неделя</p>
+        <p class="pace__caption" id="pace-caption">Сбалансировано</p>
+        <input class="pace__slider" id="pace-slider" type="range"
+               min="0.1" max="1" step="0.1" value="0.5"
+               aria-label="Темп изменений, килограммов в неделю">
+      </div>
+      <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
+    </section>
+
+    <!-- Шаг 9. Итоговый план -->
+    <section class="wizard__step wizard__step--final" data-step="9" hidden>
+      <div class="wizard__chart" id="wizard-chart" aria-hidden="true"></div>
+      <div class="wizard__chart-months" id="wizard-months"></div>
+      <p class="wizard__result-label">Ваш желаемый вес</p>
+      <p class="wizard__result-weight" id="wizard-result-weight">— кг</p>
+      <span class="wizard__result-badge">Ты сможешь!</span>
+      <p class="overline" style="margin-top: var(--space-xl);">Ваш индивидуальный план</p>
+      <h3 class="wizard__result-plan" id="wizard-result-date">—</h3>
+      <p class="wizard__result-kcal" id="wizard-result-kcal"></p>
+      <p class="wizard__result-note" id="wizard-result-note" hidden></p>
+      <button class="btn wizard__finish" type="button" data-wizard-finish>Продолжить</button>
+    </section>
+  </div>
+</div>
 
   <script src="data/products.js" defer></script>
   <script src="data/script.js?v=3" defer></script>

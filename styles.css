@@ -1422,3 +1422,267 @@ body.no-scroll { overflow: hidden; }
 
 /* Кнопки «Изменить цель» и «Выйти из аккаунта» */
 .profile__actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+/* ==========================================================================
+   11. МАСТЕР ПОСТАНОВКИ ЦЕЛИ (5 шагов: цель → пол → дата → рост → вес)
+   Оверлей с дымкой поверх сайта; карточки вопросов чуть светлее фона;
+   колёса выбора крутятся скроллом, свайпом, кликом и стрелками клавиатуры.
+   ========================================================================== */
+.wizard {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: var(--space-md);
+}
+
+/* Дымка: сайт позади размывается и гаснет — вопросы становятся чётче */
+.wizard__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(238, 247, 244, .55);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
+  animation: page-fade .25s ease-out both;
+}
+
+/* Полотно мастера: тёплый светлый фон, как на референсе */
+.wizard__sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  width: min(640px, 100%);
+  max-height: min(88vh, 780px);
+  padding: var(--space-lg) var(--space-lg) var(--space-xl);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  border: 1px solid rgba(255, 255, 255, .7);
+  background: rgba(240, 239, 237, .96);
+  box-shadow: var(--shadow-glass-lg);
+  animation: modal-in .3s var(--ease-smooth) both;
+}
+
+/* Шапка: стрелка «назад» + прогресс-бар */
+.wizard__top { display: flex; align-items: center; gap: var(--space-sm); }
+
+.wizard__back {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--clr-ink);
+  transition: background-color var(--transition);
+}
+
+.wizard__back:hover { background: rgba(10, 75, 69, .08); }
+
+.wizard__back svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wizard__progress {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(28, 28, 28, .14);
+  overflow: hidden;
+}
+
+.wizard__progress-fill {
+  display: block;
+  height: 100%;
+  width: 20%;
+  border-radius: inherit;
+  background: var(--clr-ink);
+  transition: width .35s var(--ease-smooth);
+}
+
+/* Шаг мастера */
+.wizard__step {
+  display: grid;
+  gap: var(--space-lg);
+  animation: rise .35s var(--ease-smooth) both;
+}
+
+.wizard__title {
+  font-family: var(--font-body);
+  font-size: var(--fs-h1);
+  font-weight: 800;
+  color: var(--clr-ink);
+}
+
+/* Карточки-ответы: ЧУТЬ заметнее фона полотна (как на референсе) */
+.wizard__options { display: grid; gap: var(--space-md); }
+.wizard__options--pair { grid-template-columns: 1fr 1fr; }
+
+.wizard__option {
+  padding: var(--space-lg);
+  border-radius: var(--radius-md);
+  background: #f7f9fb;
+  box-shadow: 0 1px 2px rgba(20, 20, 20, .04),
+              inset 0 0 0 1px rgba(255, 255, 255, .65);
+  text-align: left;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--clr-ink);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.wizard__options--pair .wizard__option { text-align: center; }
+
+.wizard__option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(20, 20, 20, .08),
+              inset 0 0 0 1px rgba(255, 255, 255, .8);
+}
+
+.wizard__next { justify-self: center; min-width: 200px; }
+
+/* ---------- Колёса выбора (как «Рост» и «Вес» на референсе) ---------- */
+.wheel-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+/* Широкая пилюля-подсветка выбранной строки поверх всех колонок */
+.wheel-row__pill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 56px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: rgba(10, 75, 69, .10);
+  pointer-events: none;
+}
+
+/* Неподвижные «,» и «см / кг» на линии пилюли */
+.wheel-row__static {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--clr-ink);
+}
+
+.wheel { flex: 1; min-width: 0; height: 280px; }
+
+.wheel__viewport {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y proximity;
+  scrollbar-width: none;
+  /* Крайние значения тают, как на референсе */
+  -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent);
+}
+
+.wheel__viewport::-webkit-scrollbar { display: none; }
+
+.wheel__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  scroll-snap-align: center;
+  font-size: var(--fs-h2);
+  color: var(--clr-ink);
+  opacity: .3;
+  transition: opacity .15s ease;
+}
+
+.wheel__item.is-active { opacity: 1; font-weight: 700; }
+
+@media (max-width: 480px) {
+  .wizard__options--pair { grid-template-columns: 1fr; }
+}
+/* ==========================================================================
+   12. МАСТЕР: ШАГИ 6–9 (целевой вес, образ жизни, темп, итоговый план)
+   ========================================================================== */
+/* Выбранная карточка активности вспыхивает салатовым, как в референсе */
+.wizard__option.is-picked { background: #57e861; color: #0a3d20; box-shadow: none; }
+
+/* Слайдер темпа */
+.pace { display: grid; gap: var(--space-xs); justify-items: center; padding-block: var(--space-lg); width: 100%; }
+.pace__value { font-size: var(--fs-h1); font-weight: 800; color: var(--clr-ink); }
+.pace__caption { font-size: var(--fs-h3); color: var(--clr-muted); }
+.pace__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  margin-top: var(--space-xl);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0a4b2c 50%, #b9cdc4 50%);
+  outline: none;
+}
+.pace__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 38px;
+  height: 26px;
+  border-radius: 10px;
+  background: #0a4b2c;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(10, 75, 44, .35);
+}
+.pace__slider::-moz-range-thumb {
+  width: 38px;
+  height: 26px;
+  border: none;
+  border-radius: 10px;
+  background: #0a4b2c;
+  cursor: pointer;
+}
+
+/* Итоговый экран */
+.wizard__step--final { justify-items: start; }
+.wizard__chart { width: 100%; }
+.wizard__chart svg { width: 100%; height: auto; display: block; }
+.wizard__chart-line { fill: none; stroke-width: 26; stroke-linecap: round; stroke-linejoin: round; }
+.wizard__chart-line--active { stroke: #57e861; }
+.wizard__chart-line--plan { stroke: #0a4b2c; }
+.wizard__chart-dot--end { fill: #0a4b2c; }
+.wizard__chart-dot--start { fill: #fff; }
+.wizard__chart-months {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-md);
+  font-size: var(--fs-h3);
+  color: var(--clr-ink);
+}
+.wizard__result-label { margin-top: var(--space-xl); font-size: var(--fs-h3); color: var(--clr-ink); }
+.wizard__result-weight { font-size: var(--fs-hero); font-weight: 800; line-height: 1.1; color: var(--clr-ink); }
+.wizard__result-badge {
+  display: inline-block;
+  padding: .4em 1em;
+  border-radius: 999px;
+  background: #57e861;
+  color: #0a3d20;
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+.wizard__result-plan { margin-top: var(--space-xs); font-size: var(--fs-h2); font-weight: 800; color: var(--clr-ink); }
+.wizard__finish {
+  width: 100%;
+  padding: 1em;
+  background: #57e861;
+  color: #0a3d20;
+  font-size: var(--fs-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.wizard__finish:hover { filter: brightness(1.05); transform: translateY(-2px); }
