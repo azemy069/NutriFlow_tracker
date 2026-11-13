@@ -1,19 +1,19 @@
 /* ==========================================================================
-NUTRIFLOW — логика приложения (ВЕРСИЯ 6 — мастер цели из 9 шагов)
-Данные каждого пользователя лежат раздельно и структурированно:
-nutriflow.db.<uid>.diary.v1    — блюда по дням
-nutriflow.db.<uid>.history.v1  — недавние продукты
-nutriflow.db.<uid>.weight.v2   — журнал веса: одна запись на день { date, kg, ts }
-nutriflow.db.<uid>.goals.v2    — цели (ккал и БЖУ)
-nutriflow.db.<uid>.profile.v2  — анкета цели: цель, пол, дата, рост, вес,
-                                 целевой вес, активность, темп
+NUTRIFLOW — логика приложения (ВЕРСИЯ 7)
+· Темп берётся ТОЧНО как выбрал пользователь (без ограничений).
+· Дата цели выводится с годом — порядок шагов больше не путается.
+· Вода: 30 мл на кг веса + добавка за активность (показывается в шаге 9 и в окне плана).
+· Кнопка «ОК» переносит цель по ккал и воду в цели пользователя —
+  кольцо дневника сразу показывает новую норму вместо 1800.
+Базы (localStorage), раздельно по аккаунтам:
+nutriflow.db.<uid>.diary.v1 / .history.v1 / .weight.v2 / .goals.v2 / .profile.v2
 ========================================================================== */
 'use strict';
 
-const APP_VERSION = '6.1';
+const APP_VERSION = '7.0';
 const LOG = (...args) => console.log(
   `%c[NutriFlow v${APP_VERSION}]`,
-  'color:#0e7d72;font-weight:bold', 
+  'color:#0e7d72;font-weight:bold',
   ...args
 );
 
@@ -37,7 +37,6 @@ const RING_LENGTH = 327;
 const MEALS = [{ key: 'breakfast' }, { key: 'lunch' }, { key: 'dinner' }, { key: 'snack' }];
 const HISTORY_LIMIT = 20;
 
-/* Безопасная инициализация базы продуктов (не падает, если products.js не подключён) */
 const SAFE_PRODUCTS = typeof PRODUCTS_DB !== 'undefined' && Array.isArray(PRODUCTS_DB) ? PRODUCTS_DB : [];
 const PRODUCT_MAP = new Map(SAFE_PRODUCTS.map((product) => [product.id, product]));
 
@@ -74,7 +73,6 @@ const dateTitle = (key) => {
 };
 
 /* ------------------ 2. БАЗЫ ДАННЫХ И СЕССИЯ ------------------ */
-/* Версия ключей v2 отсекает старые склеенные данные из прошлых тестов */
 const DB_USERS   = 'nutriflow.db.users.v2';
 const DB_SESSION = 'nutriflow.db.session.v2';
 const dbKey = (uid, domain) => `nutriflow.db.${uid}.${domain}.v2`;
@@ -89,13 +87,11 @@ const currentUser = () => {
   return loadUsers().find((u) => u.id === id) || null;
 };
 
-/* Если сессия указывает на несуществующего пользователя, сбрасываем в guest */
 const scopeUid = () => {
   const user = currentUser();
   return user ? user.id : 'guest';
 };
 
-/* Надёжная генерация уникального ID без коллизий */
 const generateUid = (email) => {
   let hash = 0;
   for (let i = 0; i < email.length; i++) {
@@ -115,7 +111,6 @@ function registerUser(name, email, password) {
   const user = { id: generateUid(clean), name: name.trim(), email: clean, password };
   users.push(user);
   saveJSON(DB_USERS, users);
-  /* Личные пустые хранилища нового аккаунта */
   saveJSON(dbKey(user.id, 'diary'), {});
   saveJSON(dbKey(user.id, 'history'), []);
   saveJSON(dbKey(user.id, 'weight'), []);
@@ -183,7 +178,6 @@ function switchScope() {
   LOG('Активный профиль:', newUid, '| Ключ БД:', dbKey(newUid, 'diary'));
 }
 
-/* Индикатор текущего аккаунта в сайдбаре, чтобы всегда видеть, чей дневник открыт */
 function renderUserBadge() {
   const foot = $('.sidebar__foot');
   if (!foot) return;
@@ -213,7 +207,6 @@ const dayEntries = () => {
 };
 
 const persistDiary = () => {
-  /* Перед записью сверяем актуальный uid из сессии */
   state.uid = scopeUid();
   const key = dbKey(state.uid, 'diary');
   saveJSON(key, state.diary);
@@ -584,22 +577,26 @@ function initAuth() {
     LOG('Выход из аккаунта выполнен.');
   });
 
-  /* Кнопка «Изменить цель» открывает мастер из 9 шагов */
   $('#goal-btn').addEventListener('click', wizardOpen);
 
   renderProfile();
 }
 
 /* ==========================================================================
-   11. МАСТЕР ПОСТАНОВКИ ЦЕЛИ — 9 ШАГОВ
-   1 цель · 2 пол · 3 дата рождения · 4 рост · 5 вес · 6 целевой вес ·
-   7 образ жизни · 8 темп изменений · 9 итоговый план
-   Ответы сохраняются в nutriflow.db.<uid>.profile.v2, текущий вес
-   дополнительно попадает в журнал nutriflow.db.<uid>.weight.v2.
+   11. МАСТЕР ЦЕЛИ: 9 ШАГОВ + РАСЧЁТ ПЛАНА (офлайн)
+   Темп берётся ТОЧНО как выбрал пользователь: 1 кг/нед = 1 кг/нед.
+   Недели = |разница весов| ÷ темп; дата = сегодня + недели × 7 (с годом).
+   Калории: TDEE (Миффлин–Сан-Жеор × активность) ± дефицит темпа (1 кг ≈ 7700 ккал).
+   Вода: 30 мл/кг + добавка за активность.
    ========================================================================== */
 const WIZARD_TOTAL = 9;
 const WHEEL_ITEM_H = 56;
 const WHEEL_VISIBLE = 5;
+const KCAL_PER_KG = 7700;
+const ACTIVITY_FACTORS = { sedentary: 1.2, light: 1.375, active: 1.55, training: 1.725 };
+const WATER_ACTIVITY = { sedentary: 0, light: 0.15, active: 0.35, training: 0.5 };
+const MONTHS_SHORT = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь',
+                      'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
 
 const wizardData = {
   goal: null,
@@ -618,13 +615,63 @@ const wheels = new Map();
 
 const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
 
-/* ---------- Колесо выбора: скролл со снапом по центру ---------- */
+const computeAge = (birth) => {
+  const now = new Date();
+  let age = now.getFullYear() - birth.year;
+  const delta = now.getMonth() + 1 - birth.month;
+  if (delta < 0 || (delta === 0 && now.getDate() < birth.day)) age--;
+  return Math.max(10, Math.min(100, age));
+};
+
+function computeEnergy(data) {
+  const age = computeAge(data.birth);
+  const bmr = data.sex === 'male'
+    ? 10 * data.weightKg + 6.25 * data.heightCm - 5 * age + 5
+    : 10 * data.weightKg + 6.25 * data.heightCm - 5 * age - 161;
+  const tdee = bmr * (ACTIVITY_FACTORS[data.activity] ?? 1.2);
+  return { age, bmr, tdee };
+}
+
+/* Плавная кривая через точки: Catmull-Rom → Безье */
+const smoothPath = (pts) => {
+  let d = `M${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    d += ` C${(p1.x + (p2.x - p0.x) / 6).toFixed(1)} ${(p1.y + (p2.y - p0.y) / 6).toFixed(1)},`
+       + ` ${(p2.x - (p3.x - p1.x) / 6).toFixed(1)} ${(p2.y - (p3.y - p1.y) / 6).toFixed(1)},`
+       + ` ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+};
+
+/* Месяцы с текущего по месяц цели; последний месяц всегда виден */
+function buildMonths(start, finish) {
+  const list = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const end = new Date(finish.getFullYear(), finish.getMonth(), 1);
+  while (cursor <= end) {
+    list.push(MONTHS_SHORT[cursor.getMonth()]);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  if (list.length === 1) list.push(MONTHS_SHORT[cursor.getMonth() % 12]);
+  if (list.length > 8) {
+    const step = Math.ceil(list.length / 8);
+    const out = list.filter((_, i) => i % step === 0);
+    if (out[out.length - 1] !== list[list.length - 1]) out.push(list[list.length - 1]);
+    return out;
+  }
+  return list;
+}
+
+/* ---------- Колесо выбора ---------- */
 function createWheel(host, values, initial, format) {
   const viewport = document.createElement('div');
   viewport.className = 'wheel__viewport';
   viewport.tabIndex = 0;
 
-  /* Пустые блоки сверху и снизу, чтобы крайние значения доходили до центра */
   const pad = () => {
     const p = document.createElement('div');
     p.className = 'wheel__pad';
@@ -655,7 +702,6 @@ function createWheel(host, values, initial, format) {
     paint();
   }
 
-  /* Подсветка и «таяние» значений по мере удаления от центра */
   function paint() {
     const center = viewport.scrollTop / WHEEL_ITEM_H;
     viewport.querySelectorAll('.wheel__item').forEach((el) => {
@@ -665,7 +711,6 @@ function createWheel(host, values, initial, format) {
     });
   }
 
-  /* Доснап после остановки скролла (свайп, тач, перетаскивание полосы) */
   let snapTimer = 0;
   viewport.addEventListener('scroll', () => {
     paint();
@@ -676,25 +721,20 @@ function createWheel(host, values, initial, format) {
     );
   }, { passive: true });
 
-  /* ФИКС прыжков через значение: колесо мыши перехватывается вручную.
-     ЛЮБОЕ событие колеса (дельта 100, 160, 240 px — не важно) даёт
-     строго ОДИН шаг: дельта копится до порога чувствительности,
-     остаток сбрасывается, а замок 60 мс гасит серийные события.
-     Трекпад при этом листает плавно, потому что присылает много
-     мелких событий, и каждое преодолевает порог по очереди. */
+  /* 1 событие колеса = ровно 1 шаг (без перескоков через значения) */
   let wheelAcc = 0;
   let wheelLock = 0;
   viewport.addEventListener('wheel', (event) => {
     event.preventDefault();
     const unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1;
     wheelAcc += event.deltaY * unit;
-    const STEP_PX = 60;                 // порог чувствительности
+    const STEP_PX = 60;
     if (Math.abs(wheelAcc) < STEP_PX) return;
     const now = performance.now();
-    if (now - wheelLock < 60) return;   // серия событий подряд — подождать
+    if (now - wheelLock < 60) return;
     wheelLock = now;
-    const dir = wheelAcc > 0 ? 1 : -1;  // направление прокрутки
-    wheelAcc = 0;                       // одно событие — максимум один шаг
+    const dir = wheelAcc > 0 ? 1 : -1;
+    wheelAcc = 0;
     scrollToIndex(wheel.index + dir);
   }, { passive: false });
 
@@ -713,14 +753,11 @@ function createWheel(host, values, initial, format) {
   return wheel;
 }
 
-/* Создание всех колёс один раз при первом открытии мастера */
 function ensureWheels() {
   if (wheelsReady) return;
   wheelsReady = true;
-  const MONTHS = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь',
-                  'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
   createWheel($('[data-wheel="b-day"]'),   range(1, 31),      wizardData.birth.day);
-  createWheel($('[data-wheel="b-month"]'), range(1, 12),      wizardData.birth.month, (v) => MONTHS[v - 1]);
+  createWheel($('[data-wheel="b-month"]'), range(1, 12),      wizardData.birth.month, (v) => MONTHS_SHORT[v - 1]);
   createWheel($('[data-wheel="b-year"]'),  range(1900, 2026), wizardData.birth.year);
   createWheel($('[data-wheel="h-int"]'),   range(100, 220),   Math.floor(wizardData.height));
   createWheel($('[data-wheel="h-dec"]'),   range(0, 9),       Math.round((wizardData.height % 1) * 10));
@@ -730,7 +767,6 @@ function ensureWheels() {
   createWheel($('[data-wheel="t-dec"]'),   range(0, 9),       Math.round((wizardData.target % 1) * 10));
 }
 
-/* Подставить сохранённые ранее ответы в колёса */
 function syncWheels() {
   if (!wheelsReady) return;
   wheels.get('b-day').set(wizardData.birth.day);
@@ -744,6 +780,49 @@ function syncWheels() {
   wheels.get('t-dec').set(Math.round((wizardData.target % 1) * 10));
 }
 
+const readWheels = () => ({
+  birth:    { day: wheels.get('b-day').get(), month: wheels.get('b-month').get(), year: wheels.get('b-year').get() },
+  heightCm: wheels.get('h-int').get() + wheels.get('h-dec').get() / 10,
+  weightKg: wheels.get('w-int').get() + wheels.get('w-dec').get() / 10,
+  targetKg: wheels.get('t-int').get() + wheels.get('t-dec').get() / 10,
+});
+
+/* ---------- Единый расчёт плана: БЕЗ изменения выбора пользователя ---------- */
+function computePlan() {
+  const rw = readWheels();
+  const current = rw.weightKg;
+  const target  = rw.targetKg;
+  const diff = current - target;
+  const direction = diff > 0.05 ? 'loss' : diff < -0.05 ? 'gain' : 'keep';
+  const sex = wizardData.sex || 'female';
+
+  const { tdee } = computeEnergy({
+    sex, birth: rw.birth, heightCm: rw.heightCm,
+    weightKg: current, activity: wizardData.activity,
+  });
+
+  /* Темп — ровно тот, что выбрал пользователь */
+  const pace = wizardData.pace || 0.5;
+
+  /* Недели = кг ÷ темп; дата = сегодня + недели × 7 */
+  const days = direction === 'keep' ? 0 : Math.round((Math.abs(diff) / pace) * 7);
+  const start  = new Date();
+  const finish = new Date(start);
+  finish.setDate(finish.getDate() + days);
+
+  const delta = Math.round((pace * KCAL_PER_KG) / 7 / 10) * 10;
+  const targetKcal = Math.max(0, Math.round(
+    (tdee + (direction === 'gain' ? delta : direction === 'loss' ? -delta : 0)) / 10
+  ) * 10);
+
+  const waterL = +((current * 0.03) + (WATER_ACTIVITY[wizardData.activity] ?? 0)).toFixed(1);
+
+  return { rw, current, target, diff, direction, tdee, pace,
+           days, start, finish, delta, targetKcal, waterL };
+}
+
+let lastPlan = null;
+
 function wizardGo(step) {
   wizardStep = step;
   $$('.wizard__step').forEach((section) => {
@@ -756,7 +835,6 @@ function wizardGo(step) {
   if (step === WIZARD_TOTAL) renderResult();
 }
 
-/* Подсветка ранее выбранного варианта активности */
 const syncActivityPick = () => {
   $$('.wizard__option[data-activity]').forEach((o) => {
     o.classList.toggle('is-picked', o.dataset.activity === wizardData.activity);
@@ -767,7 +845,6 @@ function wizardOpen() {
   const root = $('#goal-wizard');
   if (!root) return;
 
-  /* Предзаполнение из сохранённой анкеты пользователя */
   const p = state.profile;
   if (p) {
     wizardData.goal = p.goal ?? null;
@@ -799,7 +876,6 @@ function wizardClose() {
   document.body.classList.remove('no-scroll');
 }
 
-/* Журнал веса: одна запись на день, свежая перезаписывает сегодняшнюю */
 function pushWeightRecord(kg) {
   const list = Array.isArray(state.weight) ? state.weight : [];
   const today = dateKey(0);
@@ -815,7 +891,7 @@ function pushWeightRecord(kg) {
   LOG('Запись веса сохранена →', dbKey(state.uid, 'weight'));
 }
 
-/* ---------- Шаг 8: слайдер темпа ---------- */
+/* ---------- Слайдер темпа ---------- */
 const trimNum = (n) => {
   const s = n.toFixed(1);
   return s.endsWith('.0') ? s.slice(0, -2) : s.replace('.', ',');
@@ -842,71 +918,142 @@ function updatePaceUI() {
     `linear-gradient(90deg, #0a4b2c ${percent}%, #b9cdc4 ${percent}%)`;
 }
 
-/* ---------- Шаг 9: итоговый план с графиком и датой цели ---------- */
+/* ---------- Шаг 9: итоговый экран ---------- */
+
+/* Недельный ряд веса: в среднем за неделю — ровно темп пользователя,
+   но с живыми колебаниями (плато и небольшие «откаты»), как в реальности.
+   Ряд детерминированный: при тех же данных график не «прыгает». */
+function buildWeightSeries(current, target, pace, weeks) {
+  let seed = (Math.round(current * 10) * 31 + Math.round(target * 10) * 17 + Math.round(pace * 100)) % 233280;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const pts = [current];
+  let w = current;
+  for (let i = 1; i < weeks; i++) {
+    const base = (target - w) / (weeks - i + 1);   // равномерный шаг до финиша
+    let k = 0.5 + rnd();                            // 0.5–1.5 от шага
+    if (rnd() < 0.16) k = -0.35;                    // неделя-«откат»
+    w += base * k;
+    pts.push(+w.toFixed(2));
+  }
+  pts.push(target);                                 // финиш точно в целевом весе
+  return pts;
+}
+
+/* Тонкий «живой» график с осями и стрелкой, как в референсе */
+function renderWeightChart(plan) {
+  const chart = $('#wizard-chart');
+  if (!chart) return;
+  const { current, target, pace, days } = plan;
+  const weeks = Math.max(1, Math.round(days / 7));
+  const series = buildWeightSeries(current, target, pace, weeks);
+
+  const W = 600, H = 300;
+  const AX = 36, AY = 264;                          // угол осей
+  const X0 = 50, X1 = 556, YT = 34, YB = 246;       // область данных
+
+  const wMax = Math.max(...series) + 0.6;
+  const wMin = Math.min(...series) - 0.6;
+  const span = Math.max(0.5, wMax - wMin);
+  const xOf = (i) => X0 + (i / (series.length - 1)) * (X1 - X0);
+  const yOf = (w) => YT + ((wMax - w) / span) * (YB - YT);
+
+  /* Не более ~26 узлов на линию, чтобы график читался */
+  const stride = Math.max(1, Math.ceil(series.length / 26));
+  const nodes = series
+    .map((w, i) => ({ x: xOf(i), y: yOf(w) }))
+    .filter((_, i) => i % stride === 0 || i === series.length - 1);
+
+  const path = nodes.map((n, i) => `${i ? 'L' : 'M'}${n.x.toFixed(1)} ${n.y.toFixed(1)}`).join(' ');
+  const last = nodes[nodes.length - 1];
+  const prev = nodes[nodes.length - 2] || last;
+  const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
+  const tipX = last.x + 16 * Math.cos(ang);
+  const tipY = last.y + 16 * Math.sin(ang);
+  const arrow = `${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
+    `${(tipX + 13 * Math.cos(ang + 2.6)).toFixed(1)},${(tipY + 13 * Math.sin(ang + 2.6)).toFixed(1)} ` +
+    `${(tipX + 13 * Math.cos(ang - 2.6)).toFixed(1)},${(tipY + 13 * Math.sin(ang - 2.6)).toFixed(1)}`;
+
+  chart.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Прогноз изменения веса по неделям">
+      <defs>
+        <filter id="wchart-shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.22"/>
+        </filter>
+      </defs>
+      <line x1="${AX}" y1="18" x2="${AX}" y2="${AY}" class="wchart-axis"/>
+      <line x1="${AX}" y1="${AY}" x2="584" y2="${AY}" class="wchart-axis"/>
+      <path d="${path}" class="wchart-line"/>
+      <polygon points="${arrow}" class="wchart-arrow"/>
+    </svg>`;
+}
+
 function renderResult() {
-  const current = wheels.get('w-int').get() + wheels.get('w-dec').get() / 10;
-  const target  = wheels.get('t-int').get() + wheels.get('t-dec').get() / 10;
-  const diff  = current - target;                       // > 0 — похудение
-  const weeks = Math.abs(diff) / (wizardData.pace || 0.5);
-  const days  = Math.round(weeks * 7);
-  const finish = new Date();
-  finish.setDate(finish.getDate() + days);
+  const plan = computePlan();
+  lastPlan = plan;
+  const { target, direction, days, finish, delta, targetKcal, waterL } = plan;
 
   const weightEl = $('#wizard-result-weight');
   if (weightEl) weightEl.textContent = `${trimNum(target)} кг`;
 
+  /* Дата ВСЕГДА с годом — порядок «медленнее/быстрее» читается однозначно */
   const planEl = $('#wizard-result-date');
   if (planEl) {
-    planEl.textContent = days > 0
-      ? `Вы достигнете своей цели к ${finish.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
-      : 'Цель достигнута — просто держим вес!';
+    if (days > 0) {
+      const dateStr = finish.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+        .replace(/\s?г\.$/, '');
+      planEl.textContent = `Вы достигнете своей цели к ${dateStr}`;
+    } else {
+      planEl.textContent = 'Цель достигнута — просто держим вес!';
+    }
   }
 
-  const after = new Date(finish);
-  after.setMonth(after.getMonth() + 1);
+  const kcalEl = $('#wizard-result-kcal');
+  if (kcalEl) {
+    kcalEl.textContent = direction === 'keep'
+      ? `Держим вес: ${targetKcal.toLocaleString('ru-RU')} ккал в день`
+      : `Цель по калориям: ${targetKcal.toLocaleString('ru-RU')} ккал в день `
+        + `(${direction === 'loss' ? 'дефицит' : 'профицит'} ${delta.toLocaleString('ru-RU')} ккал)`;
+  }
+
+  /* Вода для обмена веществ — сразу под калориями */
+  const waterEl = $('#wizard-result-water');
+  if (waterEl) {
+    waterEl.textContent =
+      `Вода для обмена веществ: ${trimNum(waterL)} л в день (30 мл/кг + активность)`;
+  }
+
+  /* Предупреждение только информационное: расчёт НЕ меняется */
+  const noteEl = $('#wizard-result-note');
+  if (noteEl) {
+    const low = direction !== 'keep' && targetKcal > 0 && targetKcal < 1200;
+    noteEl.hidden = !low;
+    if (low) noteEl.textContent =
+      'Внимание: при таком темпе калорийность опускается ниже минимума ВОЗ (1200 ккал) — сверьтесь со специалистом.';
+  }
+
+  /* Месяцы — ровным рядом под всем графиком */
   const months = $('#wizard-months');
   if (months) {
-    const fmt = (d) => d.toLocaleDateString('ru-RU', { month: 'short' });
-    months.innerHTML =
-      `<span>${fmt(new Date())}</span><span>${fmt(finish)}</span><span>${fmt(after)}</span>`;
+    months.innerHTML = buildMonths(plan.start, finish).map((m) => `<span>${m}</span>`).join('');
+    months.style.width = '100%';
   }
 
-  const chart = $('#wizard-chart');
-  if (chart) {
-    const losing  = diff > 0.05;
-    const gaining = diff < -0.05;
-    const yStart  = losing ? 50 : gaining ? 190 : 120;
-    const first   = (losing || gaining)
-      ? `M0 ${yStart} L240 ${(yStart + 120) / 2} L370 120`
-      : `M0 120 L370 120`;
-    chart.innerHTML = `
-      <svg viewBox="0 0 600 240">
-        <path d="${first}" class="wizard__chart-line wizard__chart-line--active"/>
-        <path d="M400 120 L600 120" class="wizard__chart-line wizard__chart-line--plan"/>
-        <circle cx="370" cy="120" r="14" class="wizard__chart-dot--end"/>
-        <circle cx="400" cy="120" r="12" class="wizard__chart-dot--start"/>
-      </svg>`;
-  }
+  renderWeightChart(plan);
 }
 
-/* Финал: анкета и вес уезжают в личную базу пользователя */
+/* «Поехали!»: сохраняем анкету, ЗАКРЫВАЕМ мастер и сразу показываем плашку плана */
 function wizardFinish() {
-  wizardData.birth = {
-    day:   wheels.get('b-day').get(),
-    month: wheels.get('b-month').get(),
-    year:  wheels.get('b-year').get(),
-  };
-  wizardData.height = wheels.get('h-int').get() + wheels.get('h-dec').get() / 10;
-  wizardData.weight = wheels.get('w-int').get() + wheels.get('w-dec').get() / 10;
-  wizardData.target = wheels.get('t-int').get() + wheels.get('t-dec').get() / 10;
+  const plan = computePlan();
+  lastPlan = plan;
+  const rw = plan.rw;
 
   const profile = {
     goal:       wizardData.goal,
     sex:        wizardData.sex,
-    birth:      { ...wizardData.birth },
-    heightCm:   wizardData.height,
-    weightKg:   wizardData.weight,
-    targetKg:   wizardData.target,
+    birth:      { ...rw.birth },
+    heightCm:   rw.heightCm,
+    weightKg:   rw.weightKg,
+    targetKg:   rw.targetKg,
     activity:   wizardData.activity,
     paceKgWeek: wizardData.pace,
     updatedAt:  Date.now(),
@@ -916,14 +1063,48 @@ function wizardFinish() {
   saveJSON(dbKey(state.uid, 'profile'), profile);
   pushWeightRecord(profile.weightKg);
   LOG('Анкета сохранена →', dbKey(state.uid, 'profile'), profile);
+
+  wizardClose();          // сначала убираем мастер с экрана…
+  openPlanModal(plan);    // …и сразу показываем плашку плана поверх всего
+}
+
+/* ---------- Окно плана: калории + вода ---------- */
+function openPlanModal(plan) {
+  const modal = $('#plan-modal');
+  if (!modal) return;
+  $('#plan-kcal').textContent = plan.targetKcal.toLocaleString('ru-RU');
+  $('#plan-water').textContent = trimNum(plan.waterL);
+  const note = $('#plan-note');
+  if (note) {
+    note.textContent = plan.direction === 'keep'
+      ? `Норма поддержки ≈ ${Math.round(plan.tdee).toLocaleString('ru-RU')} ккал · вода: 30 мл/кг + активность`
+      : `Норма ≈ ${Math.round(plan.tdee).toLocaleString('ru-RU')} ккал · `
+        + `${plan.direction === 'loss' ? 'дефицит' : 'профицит'} ${plan.delta.toLocaleString('ru-RU')} ккал · `
+        + `вода: 30 мл/кг + активность`;
+  }
+  modal.hidden = false;
+  document.body.classList.add('no-scroll');
+}
+
+/* «ОК»: цель по ккал и вода уезжают в цели пользователя —
+   кольцо дневника покажет новую норму вместо 1800 */
+function applyPlan() {
+  if (!lastPlan) return;
+  state.goals = { ...state.goals, kcal: lastPlan.targetKcal, waterL: lastPlan.waterL };
+  saveJSON(dbKey(state.uid, 'goals'), state.goals);
+
+  const modal = $('#plan-modal');
+  if (modal) modal.hidden = true;
+  document.body.classList.remove('no-scroll');
   wizardClose();
+  rerenderAll();
+  LOG('Цели обновлены →', dbKey(state.uid, 'goals'), '| ккал:', state.goals.kcal, '| вода:', state.goals.waterL);
 }
 
 function initWizard() {
   const root = $('#goal-wizard');
   if (!root) return;
 
-  /* Делегирование: дымка, карточки-ответы, «Далее», «Продолжить» */
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-wizard-close]')) { wizardClose(); return; }
 
@@ -935,7 +1116,7 @@ function initWizard() {
         wizardData.activity = option.dataset.activity;
         $$('.wizard__option[data-activity]', root).forEach((o) => o.classList.remove('is-picked'));
         option.classList.add('is-picked');
-        setTimeout(() => wizardGo(wizardStep + 1), 280);   // салатовая вспышка как в референсе
+        setTimeout(() => wizardGo(wizardStep + 1), 280);
         return;
       }
     }
@@ -948,19 +1129,19 @@ function initWizard() {
     if (event.target.closest('[data-wizard-finish]')) wizardFinish();
   });
 
-  /* Стрелка назад: с 1-го шага закрывает мастер */
   $('#wizard-back')?.addEventListener('click', () => {
     if (wizardStep === 1) wizardClose();
     else wizardGo(wizardStep - 1);
   });
 
-  /* Слайдер темпа: метка и заливка дорожки обновляются сразу */
   $('#pace-slider')?.addEventListener('input', (event) => {
     wizardData.pace = Number(event.target.value);
     updatePaceUI();
   });
 
-  /* Escape закрывает мастер */
+  /* ВАЖНО: именно эта строка переносит ккал и воду в кольцо дневника */
+  $('#plan-ok')?.addEventListener('click', applyPlan);
+
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !root.hidden) wizardClose();
   });
@@ -1055,7 +1236,6 @@ function initDiaryEvents() {
   });
 }
 
-/* Синхронизация при возврате по кнопке «Назад» (bfcache) и между вкладками */
 window.addEventListener('pageshow', () => {
   switchScope();
   renderProfile();

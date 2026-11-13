@@ -1686,3 +1686,76 @@ body.no-scroll { overflow: hidden; }
   text-transform: uppercase;
 }
 .wizard__finish:hover { filter: brightness(1.05); transform: translateY(-2px); }
+/* Строка с расчётными калориями и пометка о безопасном темпе */
+.wizard__result-kcal {
+  margin-top: var(--space-sm);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--clr-teal);
+}
+.wizard__result-note {
+  margin-top: var(--space-2xs);
+  font-size: var(--fs-caption);
+  color: var(--clr-muted);
+  max-width: 46ch;
+}
+.wizard__chart-months span { flex: none; }
+
+/* ==========================================================================
+   13. ФИНАЛ МАСТЕРА: компактная вёрстка + окно плана (калории и вода)
+   ========================================================================== */
+/* Полотно может прокручиваться — текст больше никогда не обрежется */
+.wizard__sheet { overflow-y: auto; gap: var(--space-md); }
+
+/* Шаг 9 плотнее: всё умещается в один экран */
+.wizard__step--final { gap: var(--space-sm); }
+.wizard__chart { margin-top: var(--space-xs); }
+.wizard__chart svg { max-height: 190px; }
+.wizard__chart-months { margin-top: 0; }
+.wizard__result-label { margin-top: var(--space-md); }
+.wizard__result-weight { line-height: 1; }
+.wizard__result-kcal { margin-top: var(--space-2xs); }
+.wizard__result-note { margin-top: 0; }
+
+/* Изумрудная кнопка «Поехали!» */
+.wizard__finish--go {
+  background: linear-gradient(135deg, var(--clr-emerald), var(--clr-teal));
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(14, 159, 143, .35),
+              inset 0 1px 0 rgba(255, 255, 255, .45);
+}
+.wizard__finish--go:hover { filter: brightness(1.06); transform: translateY(-2px); }
+
+/* Окно плана */
+#plan-modal .modal__dialog { gap: var(--space-sm); }
+.plan__line { font-size: var(--fs-h3); color: var(--clr-ink); text-align: center; }
+.plan__line strong { font-family: var(--font-display); color: var(--clr-teal-deep); }
+.plan__note {
+  font-size: var(--fs-caption);
+  color: var(--clr-muted);
+  text-align: center;
+  max-width: 42ch;
+  line-height: 1.5;
+}
+#plan-ok { min-width: 160px; }
+/* ==========================================================================
+   14. ФИКСЫ: плашка плана поверх мастера + тонкий график прогноза
+   ========================================================================== */
+/* Плашка плана ВСЕГДА выше мастера (120) — появляется сразу после «Поехали!» */
+#plan-modal { z-index: 130; }
+
+/* Тонкий график с осями и стрелкой (как в референсе) */
+.wizard__chart svg { width: 100%; height: auto; max-height: 260px; display: block; }
+.wchart-axis { stroke: var(--clr-ink); stroke-width: 2; stroke-linecap: round; }
+.wchart-line {
+  fill: none;
+  stroke: #3fae5a;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: url(#wchart-shadow);
+}
+.wchart-arrow { fill: #3fae5a; filter: url(#wchart-shadow); }
+
+/* Месяцы растянуты под всей шириной графика */
+.wizard__chart-months { width: 100%; padding-inline: 6% 2%; }
