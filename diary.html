@@ -105,6 +105,86 @@
           <button class="meal-card__add" data-meal-add="snack"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
         </article>
       </section>
+
+        <!-- ===== ВОДНЫЙ БАЛАНС: норма из цели, ёмкости, журнал за день ===== -->
+      <section class="water" id="water-card" aria-label="Водный баланс за день">
+        <div class="water__summary glass">
+          <div class="water__ring">
+            <svg class="ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="water__ring-bg" cx="60" cy="60" r="52"/>
+              <circle class="water__ring-fill" id="water-ring" cx="60" cy="60" r="52" stroke-dasharray="327" stroke-dashoffset="327"/>
+            </svg>
+            <div class="water__ring-text">
+              <span class="water__total" id="water-total">0</span>
+              <span class="water__goal" id="water-goal">из 2 000 мл</span>
+            </div>
+          </div>
+          <div class="water__progress">
+            <div class="water__progress-head">
+              <h2 class="water__title">Вода</h2>
+              <span class="water__percent" id="water-percent">0%</span>
+            </div>
+            <div class="water__bar"><span class="water__bar-fill" id="water-bar"></span></div>
+            <p class="water__hint" id="water-hint">Норма подставляется из вашей цели. Нажимайте на ёмкости, чтобы отмечать выпитое.</p>
+          </div>
+        </div>
+
+        <div class="water__grid">
+          <button class="water__card glass" type="button" data-water-add="150" aria-label="Добавить 150 мл — чашка">
+            <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <ellipse class="w-shadow" cx="30" cy="53" rx="16" ry="3"/>
+              <path class="w-body" d="M14 22h32v9c0 9-7 17-16 17s-16-8-16-17z"/>
+              <path class="w-line" d="M46 26h3a6 6 0 0 1 0 12h-4"/>
+              <ellipse class="w-water" cx="30" cy="22" rx="16" ry="4"/>
+              <path class="w-heart" d="M30 33c-2-3-6-1-6 2 0 3 6 6 6 6s6-3 6-6c0-3-4-5-6-2z"/>
+            </svg>
+            <span class="water__add">+150 мл</span>
+            <span class="water__label">Чашка</span>
+          </button>
+
+          <button class="water__card glass" type="button" data-water-add="200" aria-label="Добавить 200 мл — стакан">
+            <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <ellipse class="w-shadow" cx="32" cy="55" rx="12" ry="3"/>
+              <path class="w-body" d="M22 10h20l-3 42h-14z"/>
+              <path class="w-water" d="M24.2 24h15.6l-2 26h-11.6z"/>
+              <path class="w-line" d="M22 10h20"/>
+            </svg>
+            <span class="water__add">+200 мл</span>
+            <span class="water__label">Стакан</span>
+          </button>
+
+          <button class="water__card glass" type="button" data-water-add="330" aria-label="Добавить 330 мл — бутылка">
+            <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <ellipse class="w-shadow" cx="32" cy="57" rx="11" ry="3"/>
+              <rect class="w-cap" x="27" y="6" width="10" height="6" rx="2"/>
+              <path class="w-body" d="M28 12h8v5c5 3 8 8 8 14v19a6 6 0 0 1-6 6H26a6 6 0 0 1-6-6V31c0-6 3-11 8-14z"/>
+              <path class="w-wave" d="M22 34c3-2 7-2 10 0s7 2 10 0M22 42c3-2 7-2 10 0s7 2 10 0"/>
+            </svg>
+            <span class="water__add">+330 мл</span>
+            <span class="water__label">Бутылка</span>
+          </button>
+
+          <button class="water__card glass" type="button" data-water-add="500" aria-label="Добавить 500 мл — длинная бутылка 0,5 литра">
+            <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <ellipse class="w-shadow" cx="32" cy="58" rx="9" ry="2.5"/>
+              <rect class="w-cap" x="28" y="4" width="8" height="5" rx="2"/>
+              <path class="w-body" d="M29 9h6v6c4 2 6 6 6 11v26a6 6 0 0 1-6 6h-6a6 6 0 0 1-6-6V26c0-5 2-9 6-11z"/>
+              <path class="w-wave" d="M25 30c2.5-1.5 5-1.5 7 0s4.5 1.5 7 0M25 38c2.5-1.5 5-1.5 7 0s4.5 1.5 7 0M25 46c2.5-1.5 5-1.5 7 0s4.5 1.5 7 0"/>
+            </svg>
+            <span class="water__add">+500 мл</span>
+            <span class="water__label">Бутылка 0,5 л</span>
+          </button>
+        </div>
+
+        <div class="water__log">
+          <h3 class="water__log-title">Записи</h3>
+          <ul class="water__log-list" id="water-log"></ul>
+        </div>
+      </section>
     </section>
   </main>
 
@@ -134,7 +214,7 @@
     </div>
   </div>
 
-  <!-- Окно порции: переключатель г/мл прямо у поля ввода -->
+  <!-- Окно порции: переключатель г/мл -->
   <div class="modal" id="weight-modal" hidden role="dialog" aria-modal="true" aria-label="Изменить порцию">
     <div class="modal__backdrop" data-weight-close></div>
     <div class="modal__dialog modal__dialog--mini glass">
@@ -157,6 +237,6 @@
   </div>
 
   <script src="data/products.js"></script>
-  <script src="data/script.js?v=11"></script>
+  <script src="data/script.js?v=14"></script>
 </body>
 </html>

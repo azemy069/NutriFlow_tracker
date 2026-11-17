@@ -1,19 +1,16 @@
 /* ==========================================================================
-   NUTRIFLOW — логика приложения (ВЕРСИЯ 8)
-   · Напитки: порция в мл, пересчёт через плотность, база не ломается.
-   · Профиль: сводка цели под шапкой аккаунта, обновляется после каждого мастера.
-   · Футер прижат к низу на всех страницах (CSS).
-   · Тёмная тема: переключатель солнце/луна, тост, сохранение между страницами.
+   NUTRIFLOW — логика приложения (ВЕРСИЯ 10)
+   ФИКС: вес больше не «залипает». Значения анкеты живут в wizardData,
+   колёса только редактируют их; скрытые шаги не сбрасывают значения.
    ========================================================================== */
 'use strict';
 
-const APP_VERSION = '8.0';
+const APP_VERSION = '10.0';
 const LOG = (...args) => console.log(`%c[NutriFlow v${APP_VERSION}]`, 'color:#0e7d72;font-weight:bold', ...args);
 
 /* ------------------ 1. УТИЛИТЫ И ДАТЫ ------------------ */
 const $  = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
-
 const loadJSON = (key, fallback) => {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
   catch { return fallback; }
@@ -24,31 +21,25 @@ const GOALS = { kcal: 1800, p: 120, f: 70, c: 200 };
 const RING_LENGTH = 327;
 const MEALS = [{ key: 'breakfast' }, { key: 'lunch' }, { key: 'dinner' }, { key: 'snack' }];
 const HISTORY_LIMIT = 20;
+const WATER_DEFAULT_ML = 2000;
 
 const SAFE_PRODUCTS = typeof PRODUCTS_DB !== 'undefined' && Array.isArray(PRODUCTS_DB) ? PRODUCTS_DB : [];
 const PRODUCT_MAP = new Map(SAFE_PRODUCTS.map((p) => [p.id, p]));
 
-/* ---- Напитки: мл ↔ г через плотность (ккал в базе на 100 г) ---- */
 const isDrink = (p) => Boolean(p) && p.cat === 'drinks';
 const drinkDensity = (p) => {
   const id = p.id;
-  if (/^(vodka|cognac|whiskey|rum|gin)/.test(id)) return 0.95;      // крепкий алкоголь
-  if (/^(wine|champagne|beer)/.test(id)) return 0.99;               // вино/пиво
+  if (/^(vodka|cognac|whiskey|rum|gin)/.test(id)) return 0.95;
+  if (/^(wine|champagne|beer)/.test(id)) return 0.99;
   if (/^(milkshake|cocoa-milk|latte|cappuccino|coffee-milk|frappe|mocha)/.test(id)) return 1.03;
   if (/^(juice|smoothie|compote|mors|kissel|lemonade|cola|pepsi|fanta|sprite|energy|kvass)/.test(id)) return 1.04;
-  return 1;                                                       // вода, чай, кофе
+  return 1;
 };
 const toGrams = (p, amount, unit) => unit === 'ml' ? amount * drinkDensity(p) : amount;
-const unitLabel = (unit) => unit === 'ml' ? 'мл' : 'г';
-
+const unitLabel = (u) => u === 'ml' ? 'мл' : 'г';
 const calcPortion = (p, amount, unit = 'g') => {
   const k = toGrams(p, amount, unit) / 100;
-  return {
-    kcal: Math.round(p.kcal * k),
-    p: +(p.p * k).toFixed(1),
-    f: +(p.f * k).toFixed(1),
-    c: +(p.c * k).toFixed(1),
-  };
+  return { kcal: Math.round(p.kcal * k), p: +(p.p * k).toFixed(1), f: +(p.f * k).toFixed(1), c: +(p.c * k).toFixed(1) };
 };
 
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -62,6 +53,7 @@ const dateTitle = (key) => {
   if (key === dateKey(1)) return `Завтра, ${plain}`;
   return parseKey(key).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
 };
+const trimNum = (n) => { const s = Number(n).toFixed(1); return s.endsWith('.0') ? s.slice(0, -2) : s.replace('.', ','); };
 
 /* ------------------ 1.5. ТЕМА И ТОСТ ------------------ */
 const THEME_KEY = 'nutriflow.theme';
@@ -71,8 +63,7 @@ function applyTheme(theme) {
   const btn = $('#theme-toggle');
   if (btn) {
     const label = theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему';
-    btn.setAttribute('aria-label', label);
-    btn.title = label;
+    btn.setAttribute('aria-label', label); btn.title = label;
   }
 }
 let toastTimer = 0;
@@ -80,9 +71,7 @@ function showToast(message) {
   let el = $('#app-toast');
   if (!el) {
     el = document.createElement('div');
-    el.id = 'app-toast';
-    el.className = 'app-toast';
-    el.setAttribute('role', 'status');
+    el.id = 'app-toast'; el.className = 'app-toast'; el.setAttribute('role', 'status');
     document.body.append(el);
   }
   el.textContent = message;
@@ -102,19 +91,16 @@ applyTheme(getTheme());
 const DB_USERS = 'nutriflow.db.users.v2';
 const DB_SESSION = 'nutriflow.db.session.v2';
 const dbKey = (uid, domain) => `nutriflow.db.${uid}.${domain}.v2`;
-
 const loadUsers = () => loadJSON(DB_USERS, []);
 const setSession = (id) => saveJSON(DB_SESSION, id);
 const clearSession = () => localStorage.removeItem(DB_SESSION);
 const currentUser = () => { const id = loadJSON(DB_SESSION, null); return id ? loadUsers().find((u) => u.id === id) || null : null; };
 const scopeUid = () => { const u = currentUser(); return u ? u.id : 'guest'; };
-
 const generateUid = (email) => {
   let hash = 0;
   for (let i = 0; i < email.length; i++) { hash = (hash << 5) - hash + email.charCodeAt(i); hash |= 0; }
   return `u_${Math.abs(hash).toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 };
-
 function registerUser(name, email, password) {
   const users = loadUsers();
   const clean = email.toLowerCase().trim();
@@ -126,6 +112,7 @@ function registerUser(name, email, password) {
   saveJSON(dbKey(user.id, 'history'), []);
   saveJSON(dbKey(user.id, 'weight'), []);
   saveJSON(dbKey(user.id, 'goals'), { ...GOALS });
+  saveJSON(dbKey(user.id, 'water'), {});
   setSession(user.id);
   LOG('Зарегистрирован:', user.email, '| uid =', user.id);
   return { user };
@@ -142,46 +129,45 @@ function loginUser(email, password) {
 /* ------------------ 3. ОБЛАСТЬ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ------------------ */
 function loadScope(uid) {
   const diary = loadJSON(dbKey(uid, 'diary'), {});
+  const water = loadJSON(dbKey(uid, 'water'), {});
   return {
     diary: diary && typeof diary === 'object' ? diary : {},
     history: loadJSON(dbKey(uid, 'history'), []),
     weight: loadJSON(dbKey(uid, 'weight'), []),
     goals: loadJSON(dbKey(uid, 'goals'), null) || { ...GOALS },
     profile: loadJSON(dbKey(uid, 'profile'), null),
+    water: water && typeof water === 'object' ? water : {},
   };
 }
 
 /* ------------------ 4. СОСТОЯНИЕ ------------------ */
 const state = {
   uid: scopeUid(), date: dateKey(0), dayOffset: 0,
-  diary: {}, history: [], weight: [], goals: { ...GOALS }, profile: null,
+  diary: {}, history: [], weight: [], goals: { ...GOALS }, profile: null, water: {},
   modalMeal: null, modalTab: 'search', modalQuery: '',
   selected: new Map(), weightTarget: null,
 };
-
 function switchScope() {
   const scope = loadScope(scopeUid());
   state.uid = scopeUid();
   state.date = dateKey(state.dayOffset);
   state.diary = scope.diary; state.history = scope.history;
-  state.weight = scope.weight; state.goals = scope.goals; state.profile = scope.profile;
+  state.weight = scope.weight; state.goals = scope.goals;
+  state.profile = scope.profile; state.water = scope.water;
   state.modalMeal = null; state.modalQuery = '';
   state.selected.clear(); state.weightTarget = null;
   renderUserBadge();
-  LOG('Активный профиль:', state.uid, '| Ключ БД:', dbKey(state.uid, 'diary'));
+  LOG('Активный профиль:', state.uid);
 }
-
 function renderUserBadge() {
   const foot = $('.sidebar__foot');
   if (!foot) return;
   let badge = $('#sidebar-user-badge');
   if (!badge) {
     badge = document.createElement('a');
-    badge.id = 'sidebar-user-badge';
-    badge.href = 'profile.html';
+    badge.id = 'sidebar-user-badge'; badge.href = 'profile.html';
     badge.className = 'sidebar__note';
-    badge.style.fontWeight = '700';
-    badge.style.color = 'var(--clr-teal-deep)';
+    badge.style.fontWeight = '700'; badge.style.color = 'var(--clr-teal-deep)';
     foot.prepend(badge);
   }
   const user = currentUser();
@@ -195,8 +181,7 @@ const dayEntries = () => {
 };
 const persistDiary = () => { state.uid = scopeUid(); saveJSON(dbKey(state.uid, 'diary'), state.diary); };
 const persistHistory = () => { state.uid = scopeUid(); saveJSON(dbKey(state.uid, 'history'), state.history); };
-
-function rerenderAll() { renderUserBadge(); renderDate(); renderMeals(); renderSummary(); }
+function rerenderAll() { renderUserBadge(); renderDate(); renderMeals(); renderSummary(); renderWater(); }
 
 /* ------------------ 5. СВОДКА ДНЯ ------------------ */
 function dayTotals() {
@@ -211,7 +196,6 @@ function dayTotals() {
   totals.p = Math.round(totals.p); totals.f = Math.round(totals.f); totals.c = Math.round(totals.c);
   return totals;
 }
-
 function renderSummary() {
   const totals = dayTotals();
   const goals = state.goals || GOALS;
@@ -246,7 +230,6 @@ function mealItemTemplate(item, index) {
     </button>
   </li>`;
 }
-
 function renderMeals() {
   const day = dayEntries();
   MEALS.forEach(({ key }) => {
@@ -266,7 +249,6 @@ function renderMeals() {
 
 /* ------------------ 7. ОКНО ВЫБОРА ПРОДУКТОВ ------------------ */
 let modalEl = null, modalList = null, modalSearch = null, modalSave = null;
-
 function openModal(mealKey) {
   if (!modalEl) return;
   state.modalMeal = mealKey; state.modalQuery = ''; state.selected.clear();
@@ -350,48 +332,34 @@ function pushHistory(id, weight, unit) {
 
 /* ------------------ 8. ПОРЦИЯ: ГРАММЫ / МИЛЛИЛИТРЫ ------------------ */
 let weightModal = null, weightInput = null;
-
-/* Подсветка выбранной единицы и заголовок окна */
 function setUnitUI(unit) {
   const toggle = $('#weight-unit-toggle');
-  if (toggle) {
-    $$('.unit-switch__btn', toggle).forEach((btn) => {
-      const active = btn.dataset.unit === unit;
-      btn.classList.toggle('is-active', active);
-      btn.setAttribute('aria-pressed', String(active));
-    });
-  }
+  if (toggle) $$('.unit-switch__btn', toggle).forEach((btn) => {
+    const active = btn.dataset.unit === unit;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
   const title = $('#weight-title');
   if (title) title.textContent = unit === 'ml' ? 'Изменить объём' : 'Изменить граммовку';
 }
-
 function openWeightModal(mealKey, index) {
   if (!weightModal) return;
   const item = dayEntries()[mealKey][index];
   const p = PRODUCT_MAP.get(item.id);
   if (!p) return;
-  /* Напитки без сохранённой единицы открываем в мл, остальное — в граммах */
   const unit = item.unit === 'ml' ? 'ml' : item.unit === 'g' ? 'g' : (isDrink(p) ? 'ml' : 'g');
   state.weightTarget = { meal: mealKey, index, unit };
   $('#weight-name').textContent = p.name;
   setUnitUI(unit);
   weightInput.value = item.weight;
   updateWeightHint();
-  weightModal.hidden = false;
-  document.body.classList.add('no-scroll');
-  weightInput.focus();
-  weightInput.select();
+  weightModal.hidden = false; document.body.classList.add('no-scroll');
+  weightInput.focus(); weightInput.select();
 }
-
 function closeWeightModal() {
   if (!weightModal) return;
-  weightModal.hidden = true;
-  document.body.classList.remove('no-scroll');
-  state.weightTarget = null;
+  weightModal.hidden = true; document.body.classList.remove('no-scroll'); state.weightTarget = null;
 }
-
-/* Переключение г ↔ мл: значение пересчитывается через плотность продукта,
-   поэтому калорийность остаётся той же при смене единицы */
 function setWeightUnit(next) {
   if (!state.weightTarget || next === state.weightTarget.unit) return;
   const item = dayEntries()[state.weightTarget.meal][state.weightTarget.index];
@@ -405,7 +373,6 @@ function setWeightUnit(next) {
   setUnitUI(next);
   updateWeightHint();
 }
-
 function updateWeightHint() {
   if (!state.weightTarget || !weightInput) return;
   const item = dayEntries()[state.weightTarget.meal][state.weightTarget.index];
@@ -414,7 +381,6 @@ function updateWeightHint() {
   const amount = Math.max(Number(weightInput.value) || 0, 0);
   $('#weight-kcal').textContent = `${calcPortion(p, amount, state.weightTarget.unit).kcal} ккал`;
 }
-
 function saveWeight() {
   if (!state.weightTarget) return;
   const amount = Math.min(Math.max(Math.round(Number(weightInput.value) || 0), 0), 5000);
@@ -424,23 +390,78 @@ function saveWeight() {
     item.unit = state.weightTarget.unit;
     pushHistory(item.id, amount, item.unit);
   }
-  persistDiary();
-  renderMeals();
-  renderSummary();
-  closeWeightModal();
+  persistDiary(); renderMeals(); renderSummary(); closeWeightModal();
 }
-
 function deleteItem(mealKey, index) {
   dayEntries()[mealKey].splice(index, 1);
-  persistDiary();
-  renderMeals();
-  renderSummary();
+  persistDiary(); renderMeals(); renderSummary();
 }
+
 /* ------------------ 9. НАВИГАЦИЯ ПО ДНЯМ ------------------ */
 function shiftDay(delta) {
   state.dayOffset += delta;
   state.date = dateKey(state.dayOffset);
-  renderDate(); renderMeals(); renderSummary();
+  renderDate(); renderMeals(); renderSummary(); renderWater();
+}
+
+/* ------------------ 9.5. ВОДНЫЙ БАЛАНС ------------------ */
+const waterEntries = () => {
+  if (!Array.isArray(state.water[state.date])) state.water[state.date] = [];
+  return state.water[state.date];
+};
+const persistWater = () => { state.uid = scopeUid(); saveJSON(dbKey(state.uid, 'water'), state.water); };
+const waterGoalMl = () => {
+  const liters = Number(state.goals && state.goals.waterL);
+  return liters > 0 ? Math.round(liters * 1000) : WATER_DEFAULT_ML;
+};
+function renderWater() {
+  const root = $('#water-card');
+  if (!root) return;
+  const entries = waterEntries();
+  const total = entries.reduce((sum, e) => sum + e.ml, 0);
+  const goal = waterGoalMl();
+  const pct = goal > 0 ? Math.round((total / goal) * 100) : 0;
+  const ring = $('#water-ring');
+  if (ring) ring.style.strokeDashoffset = String(Math.round(RING_LENGTH * (1 - Math.min(total / goal, 1))));
+  const totalEl = $('#water-total'); if (totalEl) totalEl.textContent = total.toLocaleString('ru-RU');
+  const goalEl = $('#water-goal'); if (goalEl) goalEl.textContent = `из ${goal.toLocaleString('ru-RU')} мл`;
+  const pctEl = $('#water-percent'); if (pctEl) pctEl.textContent = `${pct}%`;
+  const bar = $('#water-bar'); if (bar) bar.style.width = `${Math.min(pct, 100)}%`;
+  const done = goal > 0 && total >= goal;
+  root.classList.toggle('is-done', done);
+  const hint = $('#water-hint');
+  if (hint) hint.textContent = done
+    ? 'Норма воды выполнена — отличная работа!'
+    : 'Норма подставляется из вашей цели. Нажимайте на ёмкости, чтобы отмечать выпитое.';
+  const list = $('#water-log');
+  if (list) {
+    list.innerHTML = entries.length
+      ? entries.map((e, i) => `<li class="water__log-item">
+          <span class="water__log-ml">${e.ml} мл</span>
+          <span class="water__log-time">${new Date(e.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+          <button class="water__log-del" type="button" data-water-del="${i}" aria-label="Удалить запись ${e.ml} мл">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </li>`).join('')
+      : '<li class="water__log-empty">Пока нет записей — нажмите на ёмкость выше</li>';
+  }
+}
+function addWater(ml) {
+  if (!ml || ml <= 0) return;
+  waterEntries().unshift({ ml, ts: Date.now() });
+  persistWater(); renderWater();
+}
+function splashWater(btn) {
+  btn.classList.remove('is-splash');
+  void btn.offsetWidth;
+  btn.classList.add('is-splash');
+  setTimeout(() => btn.classList.remove('is-splash'), 700);
+}
+function deleteWater(index) {
+  const entries = waterEntries();
+  if (!Number.isInteger(index) || index < 0 || index >= entries.length) return;
+  entries.splice(index, 1);
+  persistWater(); renderWater();
 }
 
 /* ------------------ 10. АВТОРИЗАЦИЯ, ПРОФИЛЬ, СВОДКА ЦЕЛИ ------------------ */
@@ -488,16 +509,22 @@ function renderProfileSummary() {
   const p = state.profile;
   if (!p) { card.hidden = true; empty.hidden = false; return; }
   empty.hidden = true; card.hidden = false;
+  card.dataset.goal = p.goal || 'lose';
+
   const plan = computePlanData({ ...p, pace: p.paceKgWeek });
-  $('#summary-goal').textContent = GOAL_LABELS[p.goal] || 'Цель';
-  $('#summary-height').textContent = `${trimNum(p.heightCm)} см`;
-  $('#summary-weight').textContent = `${trimNum(p.weightKg)} кг`;
-  $('#summary-target').textContent = `${trimNum(p.targetKg)} кг`;
-  $('#summary-pace').textContent = `${trimNum(p.paceKgWeek)} кг/нед`;
-  $('#summary-pace-sub').textContent = paceCaption(p.paceKgWeek);
-  $('#summary-activity').textContent = ACTIVITY_LABELS[p.activity] || '—';
-  $('#summary-date').textContent = plan.days > 0 ? fmtFullDate(plan.finish) : 'Уже достигнута';
-  $('#summary-note').textContent = `Калории: ${plan.targetKcal.toLocaleString('ru-RU')} ккал/день · Вода: ${trimNum(plan.waterL)} л/день`;
+  const set = (id, text) => { const el = $(`#${id}`); if (el) el.textContent = text; };
+
+  set('summary-goal', GOAL_LABELS[p.goal] || 'Цель');
+  set('summary-height', `${trimNum(p.heightCm)} см`);
+  set('summary-weight', `${trimNum(p.weightKg)} кг`);
+  set('summary-target', `${trimNum(p.targetKg)} кг`);
+  set('summary-pace', `${trimNum(p.paceKgWeek)} кг/нед`);
+  set('summary-pace-sub', paceCaption(p.paceKgWeek));
+  set('summary-activity', ACTIVITY_LABELS[p.activity] || '—');
+  set('summary-date', plan.days > 0 ? fmtFullDate(plan.finish) : 'Уже достигнута');
+  set('summary-kcal', `${plan.targetKcal.toLocaleString('ru-RU')} ккал/день`);
+  set('summary-water', `${trimNum(plan.waterL)} л воды`);
+  set('summary-note', `Калории: ${plan.targetKcal.toLocaleString('ru-RU')} ккал/день · Вода: ${trimNum(plan.waterL)} л/день`);
 }
 
 function renderProfile() {
@@ -524,16 +551,17 @@ function initAuth() {
   $('#auth-form')?.addEventListener('submit', submitAuth);
   $('#logout-btn').addEventListener('click', () => {
     clearSession(); switchScope(); renderProfile(); rerenderAll();
-    LOG('Выход из аккаунта выполнен.');
   });
   $('#goal-btn').addEventListener('click', wizardOpen);
   $('#summary-setup')?.addEventListener('click', wizardOpen);
+  $('#summary-edit')?.addEventListener('click', wizardOpen);
   $('#theme-toggle')?.addEventListener('click', toggleTheme);
   renderProfile();
 }
 
 /* ==========================================================================
-   11. МАСТЕР ЦЕЛИ + РАСЧЁТ ПЛАНА (офлайн)
+   11. МАСТЕР ЦЕЛИ + РАСЧЁТ ПЛАНА
+   Единый источник истины — wizardData. Колёса лишь редактируют его.
    ========================================================================== */
 const WIZARD_TOTAL = 9;
 const WHEEL_ITEM_H = 56;
@@ -543,7 +571,13 @@ const ACTIVITY_FACTORS = { sedentary: 1.2, light: 1.375, active: 1.55, training:
 const WATER_ACTIVITY = { sedentary: 0, light: 0.15, active: 0.35, training: 0.5 };
 const MONTHS_SHORT = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
 
-const wizardData = { goal: null, sex: null, birth: { day: 1, month: 1, year: 2000 }, height: 170, weight: 70, target: 65, activity: null, pace: 0.5 };
+const wizardData = {
+  goal: null, sex: null,
+  birth: { day: 1, month: 1, year: 1999 },
+  height: 170, weight: 70, target: 65,
+  activity: null, pace: 0.5,
+};
+
 let wizardStep = 1, wheelsReady = false, lastPlan = null;
 const wheels = new Map();
 const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
@@ -562,8 +596,6 @@ function computeEnergy(d) {
     : 10 * d.weightKg + 6.25 * d.heightCm - 5 * age - 161;
   return { age, bmr, tdee: bmr * (ACTIVITY_FACTORS[d.activity] ?? 1.2) };
 }
-
-/* Единый расчёт: темп ровно как выбрал пользователь, дата с годом */
 function computePlanData(d) {
   const diff = d.weightKg - d.targetKg;
   const direction = diff > 0.05 ? 'loss' : diff < -0.05 ? 'gain' : 'keep';
@@ -577,27 +609,35 @@ function computePlanData(d) {
   const waterL = +((d.weightKg * 0.03) + (WATER_ACTIVITY[d.activity] ?? 0)).toFixed(1);
   return { direction, tdee, pace, days, start, finish, delta, targetKcal, waterL };
 }
-const readWheels = () => ({
-  birth: { day: wheels.get('b-day').get(), month: wheels.get('b-month').get(), year: wheels.get('b-year').get() },
-  heightCm: wheels.get('h-int').get() + wheels.get('h-dec').get() / 10,
-  weightKg: wheels.get('w-int').get() + wheels.get('w-dec').get() / 10,
-  targetKg: wheels.get('t-int').get() + wheels.get('t-dec').get() / 10,
-});
-function computePlan() {
-  const rw = readWheels();
-  const plan = computePlanData({ sex: wizardData.sex || 'female', birth: rw.birth, heightCm: rw.heightCm, weightKg: rw.weightKg, targetKg: rw.targetKg, activity: wizardData.activity, pace: wizardData.pace });
-  return { ...plan, rw, current: rw.weightKg, target: rw.targetKg, diff: rw.weightKg - rw.targetKg };
-}
-
-const trimNum = (n) => { const s = Number(n).toFixed(1); return s.endsWith('.0') ? s.slice(0, -2) : s.replace('.', ','); };
 const paceCaption = (v) => v <= 0.2 ? 'Надежно' : v <= 0.4 ? 'Умеренно' : v <= 0.6 ? 'Сбалансировано' : v <= 0.8 ? 'Заметно' : 'Быстро';
 
-/* ---- Колесо выбора ---- */
+/* План строится ИЗ СОХРАНЁННЫХ ЗНАЧЕНИЙ, а не из живых колёс */
+function computePlan() {
+  captureStepWheels(wizardStep);
+  const draft = {
+    sex: wizardData.sex || 'female',
+    birth: { ...wizardData.birth },
+    heightCm: wizardData.height,
+    weightKg: wizardData.weight,
+    targetKg: wizardData.target,
+    activity: wizardData.activity,
+    pace: wizardData.pace,
+  };
+  const plan = computePlanData(draft);
+  return { ...plan, draft, current: draft.weightKg, target: draft.targetKg, diff: draft.weightKg - draft.targetKg };
+}
+
+/* ---------- Колесо выбора ---------- */
 function createWheel(host, values, initial, format) {
   const viewport = document.createElement('div');
   viewport.className = 'wheel__viewport';
   viewport.tabIndex = 0;
-  const pad = () => { const p = document.createElement('div'); p.className = 'wheel__pad'; p.style.height = `${(WHEEL_ITEM_H * (WHEEL_VISIBLE - 1)) / 2}px`; return p; };
+  const pad = () => {
+    const p = document.createElement('div');
+    p.className = 'wheel__pad';
+    p.style.height = `${(WHEEL_ITEM_H * (WHEEL_VISIBLE - 1)) / 2}px`;
+    return p;
+  };
   viewport.append(pad());
   values.forEach((value, i) => {
     const item = document.createElement('button');
@@ -610,8 +650,12 @@ function createWheel(host, values, initial, format) {
   });
   viewport.append(pad());
   host.append(viewport);
+
   const wheel = { host, viewport, values, index: 0 };
   wheels.set(host.dataset.wheel, wheel);
+
+  /* Колесо видно только когда его шаг открыт */
+  const isVisible = () => viewport.offsetParent !== null;
 
   function scrollToIndex(i, smooth = true) {
     wheel.index = Math.max(0, Math.min(values.length - 1, i));
@@ -626,10 +670,18 @@ function createWheel(host, values, initial, format) {
       el.style.opacity = d < .5 ? '1' : d < 1.5 ? '.55' : '.3';
     });
   }
+
+  /* ФИКС: скрытое колесо (scrollTop сбрасывается в 0) больше не
+     перезаписывает свой индекс — иначе вес откатывался к минимуму. */
   let snapTimer = 0;
   viewport.addEventListener('scroll', () => {
-    paint(); clearTimeout(snapTimer);
-    snapTimer = setTimeout(() => scrollToIndex(Math.round(viewport.scrollTop / WHEEL_ITEM_H)), 120);
+    if (!isVisible()) return;
+    paint();
+    clearTimeout(snapTimer);
+    snapTimer = setTimeout(() => {
+      if (!isVisible()) return;
+      scrollToIndex(Math.round(viewport.scrollTop / WHEEL_ITEM_H));
+    }, 120);
   }, { passive: true });
 
   let wheelAcc = 0, wheelLock = 0;
@@ -650,11 +702,23 @@ function createWheel(host, values, initial, format) {
     if (e.key === 'ArrowDown') { e.preventDefault(); scrollToIndex(wheel.index + 1); }
     if (e.key === 'ArrowUp') { e.preventDefault(); scrollToIndex(wheel.index - 1); }
   });
+
   wheel.set = (v, smooth = false) => { const i = values.indexOf(v); scrollToIndex(i === -1 ? 0 : i, smooth); };
   wheel.get = () => values[wheel.index];
+  /* Чтение учитывает реальное положение: быстрый тап «Далее» сразу
+     после прокрутки тоже сохраняет выбранное значение */
+  wheel.read = () => {
+    if (isVisible()) {
+      const i = Math.max(0, Math.min(values.length - 1, Math.round(viewport.scrollTop / WHEEL_ITEM_H)));
+      wheel.index = i;
+    }
+    return values[wheel.index];
+  };
+
   requestAnimationFrame(() => wheel.set(initial, false));
   return wheel;
 }
+
 function ensureWheels() {
   if (wheelsReady) return;
   wheelsReady = true;
@@ -668,28 +732,60 @@ function ensureWheels() {
   createWheel($('[data-wheel="t-int"]'), range(30, 200), Math.floor(wizardData.target));
   createWheel($('[data-wheel="t-dec"]'), range(0, 9), Math.round((wizardData.target % 1) * 10));
 }
-function syncWheels() {
+
+/* Забираем значения ТОЛЬКО текущего шага перед уходом с него */
+function captureStepWheels(step) {
   if (!wheelsReady) return;
-  wheels.get('b-day').set(wizardData.birth.day);
-  wheels.get('b-month').set(wizardData.birth.month);
-  wheels.get('b-year').set(wizardData.birth.year);
-  wheels.get('h-int').set(Math.floor(wizardData.height));
-  wheels.get('h-dec').set(Math.round((wizardData.height % 1) * 10));
-  wheels.get('w-int').set(Math.floor(wizardData.weight));
-  wheels.get('w-dec').set(Math.round((wizardData.weight % 1) * 10));
-  wheels.get('t-int').set(Math.floor(wizardData.target));
-  wheels.get('t-dec').set(Math.round((wizardData.target % 1) * 10));
+  if (step === 3) {
+    wizardData.birth = {
+      day: wheels.get('b-day').read(),
+      month: wheels.get('b-month').read(),
+      year: wheels.get('b-year').read(),
+    };
+  } else if (step === 4) {
+    wizardData.height = wheels.get('h-int').read() + wheels.get('h-dec').read() / 10;
+  } else if (step === 5) {
+    wizardData.weight = wheels.get('w-int').read() + wheels.get('w-dec').read() / 10;
+  } else if (step === 6) {
+    wizardData.target = wheels.get('t-int').read() + wheels.get('t-dec').read() / 10;
+  }
+}
+
+/* Центрируем колёса открываемого шага на сохранённых значениях */
+function syncStepWheels(step) {
+  if (!wheelsReady) return;
+  const apply = () => {
+    if (step === 3) {
+      wheels.get('b-day').set(wizardData.birth.day);
+      wheels.get('b-month').set(wizardData.birth.month);
+      wheels.get('b-year').set(wizardData.birth.year);
+    } else if (step === 4) {
+      wheels.get('h-int').set(Math.floor(wizardData.height));
+      wheels.get('h-dec').set(Math.round((wizardData.height % 1) * 10));
+    } else if (step === 5) {
+      wheels.get('w-int').set(Math.floor(wizardData.weight));
+      wheels.get('w-dec').set(Math.round((wizardData.weight % 1) * 10));
+    } else if (step === 6) {
+      wheels.get('t-int').set(Math.floor(wizardData.target));
+      wheels.get('t-dec').set(Math.round((wizardData.target % 1) * 10));
+    }
+  };
+  apply();
+  requestAnimationFrame(apply);
 }
 
 function wizardGo(step) {
+  captureStepWheels(wizardStep);
   wizardStep = step;
   $$('.wizard__step').forEach((s) => { s.hidden = Number(s.dataset.step) !== step; });
   const fill = $('#wizard-progress');
   if (fill) fill.style.width = `${(step / WIZARD_TOTAL) * 100}%`;
+  syncStepWheels(step);
   if (step === 7) syncActivityPick();
   if (step === 8) updatePaceUI();
   if (step === WIZARD_TOTAL) renderResult();
 }
+
 const syncActivityPick = () => $$('.wizard__option[data-activity]').forEach((o) => o.classList.toggle('is-picked', o.dataset.activity === wizardData.activity));
 
 function wizardOpen() {
@@ -697,7 +793,8 @@ function wizardOpen() {
   if (!root) return;
   const p = state.profile;
   if (p) {
-    wizardData.goal = p.goal ?? null; wizardData.sex = p.sex ?? null;
+    wizardData.goal = p.goal ?? null;
+    wizardData.sex = p.sex ?? null;
     if (p.birth) wizardData.birth = { ...p.birth };
     if (typeof p.heightCm === 'number') wizardData.height = p.heightCm;
     if (typeof p.weightKg === 'number') wizardData.weight = p.weightKg;
@@ -705,18 +802,25 @@ function wizardOpen() {
     if (p.activity) wizardData.activity = p.activity;
     if (typeof p.paceKgWeek === 'number') wizardData.pace = p.paceKgWeek;
   }
-  ensureWheels(); syncWheels();
+  root.hidden = false;
+  document.body.classList.add('no-scroll');
+  ensureWheels();
+  wizardStep = 1;
   const slider = $('#pace-slider');
   if (slider) slider.value = String(wizardData.pace);
   updatePaceUI();
-  root.hidden = false; document.body.classList.add('no-scroll');
   wizardGo(1);
+  LOG('Анкета открыта. Вес из профиля:', wizardData.weight);
 }
+
 function wizardClose() {
   const root = $('#goal-wizard');
   if (!root) return;
-  root.hidden = true; document.body.classList.remove('no-scroll');
+  captureStepWheels(wizardStep);
+  root.hidden = true;
+  document.body.classList.remove('no-scroll');
 }
+
 function pushWeightRecord(kg) {
   const list = Array.isArray(state.weight) ? state.weight : [];
   const today = dateKey(0);
@@ -725,6 +829,7 @@ function pushWeightRecord(kg) {
   state.weight = list.slice(0, 365);
   saveJSON(dbKey(state.uid, 'weight'), state.weight);
 }
+
 function updatePaceUI() {
   const slider = $('#pace-slider'), value = $('#pace-value'), caption = $('#pace-caption');
   if (!slider) return;
@@ -735,7 +840,7 @@ function updatePaceUI() {
   slider.style.background = `linear-gradient(90deg, #0a4b2c ${percent}%, #b9cdc4 ${percent}%)`;
 }
 
-/* ---- График прогноза: тонкая линия по неделям ---- */
+/* ---------- График прогноза ---------- */
 function buildWeightSeries(current, target, pace, weeks) {
   let seed = (Math.round(current * 10) * 31 + Math.round(target * 10) * 17 + Math.round(pace * 100)) % 233280;
   const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
@@ -776,8 +881,6 @@ function renderWeightChart(plan) {
     <polygon points="${arrow}" class="wchart-arrow"/>
   </svg>`;
 }
-const smoothPathUnused = null; // совместимость
-
 function buildMonths(start, finish) {
   const list = [];
   const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
@@ -821,11 +924,17 @@ function renderResult() {
 function wizardFinish() {
   const plan = computePlan();
   lastPlan = plan;
-  const rw = plan.rw;
+  const d = plan.draft;
   const profile = {
-    goal: wizardData.goal, sex: wizardData.sex, birth: { ...rw.birth },
-    heightCm: rw.heightCm, weightKg: rw.weightKg, targetKg: rw.targetKg,
-    activity: wizardData.activity, paceKgWeek: wizardData.pace, updatedAt: Date.now(),
+    goal: wizardData.goal,
+    sex: wizardData.sex,
+    birth: { ...d.birth },
+    heightCm: d.heightCm,
+    weightKg: d.weightKg,
+    targetKg: d.targetKg,
+    activity: wizardData.activity,
+    paceKgWeek: wizardData.pace,
+    updatedAt: Date.now(),
   };
   state.profile = profile;
   saveJSON(dbKey(state.uid, 'profile'), profile);
@@ -833,6 +942,7 @@ function wizardFinish() {
   renderProfileSummary();
   wizardClose();
   openPlanModal(plan);
+  LOG('Анкета сохранена. Вес:', profile.weightKg, '| Рост:', profile.heightCm, '| Цель:', profile.targetKg);
 }
 
 function openPlanModal(plan) {
@@ -854,7 +964,7 @@ function applyPlan() {
   if (modal) modal.hidden = true;
   document.body.classList.remove('no-scroll');
   wizardClose(); rerenderAll(); renderProfileSummary();
-  LOG('Цели обновлены →', dbKey(state.uid, 'goals'), '| ккал:', state.goals.kcal, '| вода:', state.goals.waterL);
+  LOG('Цели обновлены: ккал', state.goals.kcal, '| вода', state.goals.waterL, 'л');
 }
 
 function initWizard() {
@@ -921,18 +1031,28 @@ function initDiaryEvents() {
     });
     modalSave.addEventListener('click', saveSelection);
     modalSearch.addEventListener('input', () => { state.modalQuery = modalSearch.value; renderModalList(); });
-    $('#modal-search-clear')?.addEventListener('click', () => { modalSearch.value = ''; state.modalQuery = ''; renderModalList(); modalSearch.focus(); });
+    $('#modal-search-clear')?.addEventListener('click', () => {
+      modalSearch.value = ''; state.modalQuery = ''; renderModalList(); modalSearch.focus();
+    });
   }
-  
   if (weightModal) {
-    weightModal.addEventListener('click', (event) => {
-      if (event.target.closest('[data-weight-close]')) { closeWeightModal(); return; }
-      const unitBtn = event.target.closest('.unit-switch__btn');
+    weightModal.addEventListener('click', (e) => {
+      if (e.target.closest('[data-weight-close]')) { closeWeightModal(); return; }
+      const unitBtn = e.target.closest('.unit-switch__btn');
       if (unitBtn) setWeightUnit(unitBtn.dataset.unit);
     });
     weightInput.addEventListener('input', updateWeightHint);
     $('#weight-save')?.addEventListener('click', saveWeight);
   }
+
+  $$('[data-water-add]').forEach((btn) =>
+    btn.addEventListener('click', () => { splashWater(btn); addWater(Number(btn.dataset.waterAdd)); }));
+  $('#water-log')?.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-water-del]');
+    if (!del) return;
+    deleteWater(Number(del.dataset.waterDel));
+  });
+
   $('#diary-prev')?.addEventListener('click', () => shiftDay(-1));
   $('#diary-next')?.addEventListener('click', () => shiftDay(1));
   document.addEventListener('keydown', (e) => {

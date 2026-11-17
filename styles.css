@@ -1942,3 +1942,387 @@ html, body { overflow-x: clip; }
 }
 
 [data-theme="dark"] .unit-switch__btn:hover { color: var(--clr-teal-deep); }
+/* ==========================================================================
+   19. ВОДНЫЙ БАЛАНС: сводка, ёмкости, журнал (светлая + тёмная тема)
+   ========================================================================== */
+.water {
+  --water: #2ea8e0;
+  --water-deep: #0d7fb5;
+  --water-fill: rgba(46, 168, 224, .35);
+  --water-track: rgba(46, 168, 224, .16);
+  display: grid;
+  gap: var(--space-md);
+}
+[data-theme="dark"] .water {
+  --water: #5bc4f0;
+  --water-deep: #8fdcff;
+  --water-fill: rgba(91, 196, 240, .30);
+  --water-track: rgba(91, 196, 240, .16);
+}
+
+/* Сводка: кольцо + процент + полоса */
+.water__summary {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-lg) var(--space-xl);
+  align-items: center;
+}
+@media (min-width: 768px) { .water__summary { grid-template-columns: auto 1fr; } }
+
+.water__ring { position: relative; width: 128px; height: 128px; margin-inline: auto; }
+.water__ring-bg { fill: none; stroke: var(--water-track); stroke-width: 9; }
+.water__ring-fill {
+  fill: none;
+  stroke: var(--water);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke-dashoffset .6s var(--ease-smooth), stroke var(--transition);
+}
+.water.is-done .water__ring-fill { stroke: var(--clr-emerald); }
+.water__ring-text { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 2px; }
+.water__total { font-family: var(--font-display); font-size: var(--fs-h2); line-height: 1; color: var(--clr-teal-deep); }
+.water__goal { font-size: var(--fs-caption); color: var(--clr-muted); }
+
+.water__progress { display: grid; gap: var(--space-xs); }
+.water__progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); }
+.water__title { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--clr-teal-deep); }
+.water__percent { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--water-deep); transition: color var(--transition); }
+.water.is-done .water__percent { color: var(--clr-emerald); }
+.water__bar { height: 8px; border-radius: var(--radius-pill); background: var(--water-track); overflow: hidden; }
+.water__bar-fill {
+  display: block; height: 100%; width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--water), var(--water-deep));
+  transition: width .5s var(--ease-smooth), background var(--transition);
+}
+.water.is-done .water__bar-fill { background: linear-gradient(90deg, var(--clr-tiffany), var(--clr-emerald)); }
+.water__hint { font-size: var(--fs-small); color: var(--clr-muted); }
+
+/* Ёмкости: 2×2, минималистичные карточки */
+.water__grid { display: grid; gap: var(--space-md); grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 480px) { .water__grid { grid-template-columns: 1fr; } }
+
+.water__card {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-lg) var(--space-md);
+  cursor: pointer;
+  transition: transform .3s var(--ease-smooth), box-shadow .3s var(--ease-smooth);
+}
+.water__card:hover { transform: translateY(-4px); box-shadow: var(--shadow-glass-lg); }
+.water__card:active { transform: translateY(-1px) scale(.98); }
+.water__card svg { width: 78px; height: 78px; color: var(--clr-ink); }
+.water__card svg * { stroke-linecap: round; stroke-linejoin: round; }
+.w-body { fill: var(--clr-surface); stroke: currentColor; stroke-width: 2; }
+.w-line { fill: none; stroke: currentColor; stroke-width: 2; }
+.w-water { fill: var(--water-fill); stroke: var(--water); stroke-width: 2; }
+.w-wave { fill: none; stroke: var(--water); stroke-width: 2; }
+.w-cap { fill: var(--water); stroke: currentColor; stroke-width: 2; }
+.w-heart { fill: var(--water); stroke: none; }
+.w-shadow { fill: var(--water-track); stroke: none; }
+.water__add { font-weight: 800; font-size: var(--fs-body); color: var(--water-deep); }
+.water__label { font-size: var(--fs-small); color: var(--clr-muted); }
+
+/* Журнал записей */
+.water__log { display: grid; gap: var(--space-sm); }
+.water__log-title { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--clr-teal-deep); }
+.water__log-list {
+  display: grid;
+  gap: var(--space-xs);
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--water) transparent;
+}
+.water__log-list::-webkit-scrollbar { width: 6px; }
+.water__log-list::-webkit-scrollbar-track { background: transparent; }
+.water__log-list::-webkit-scrollbar-thumb { background: var(--water-track); border-radius: 999px; }
+.water__log-list::-webkit-scrollbar-thumb:hover { background: var(--water); }
+
+.water__log-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, .5);
+  box-shadow: inset 0 0 0 1px var(--clr-line);
+  animation: rise .3s var(--ease-smooth) both;
+}
+[data-theme="dark"] .water__log-item { background: rgba(18, 38, 30, .6); }
+.water__log-ml { font-weight: 800; color: var(--clr-ink); }
+.water__log-time { margin-left: auto; font-size: var(--fs-small); color: var(--clr-muted); }
+.water__log-del {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--clr-muted);
+  transition: background-color var(--transition), color var(--transition);
+}
+.water__log-del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.water__log-del:hover { color: var(--clr-danger); background: rgba(226, 104, 90, .14); }
+.water__log-empty { font-size: var(--fs-small); font-style: italic; color: var(--clr-muted); padding-block: var(--space-xs); }
+
+/* ==========================================================================
+   20. ВОДА: тряска ёмкости, всплеск капель и рябь при клике
+   ========================================================================== */
+.water__card { position: relative; overflow: visible; }
+
+/* Тряска самой ёмкости */
+@keyframes water-shake {
+  0%   { transform: translateX(0) rotate(0); }
+  18%  { transform: translateX(-3px) rotate(-3deg); }
+  36%  { transform: translateX(3px) rotate(3deg); }
+  54%  { transform: translateX(-2px) rotate(-2deg); }
+  72%  { transform: translateX(2px) rotate(1deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+.water__card.is-splash svg { animation: water-shake .55s var(--ease-smooth); }
+
+/* Вода внутри «плещется» */
+@keyframes water-slosh {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  30%      { transform: translateY(-2px) scaleY(1.08); }
+  60%      { transform: translateY(1px) scaleY(.94); }
+}
+.water__card.is-splash .w-water,
+.water__card.is-splash .w-wave {
+  animation: water-slosh .55s var(--ease-smooth);
+  transform-origin: center bottom;
+}
+
+/* Капли всплеска */
+.water__splash { position: absolute; inset: 0; pointer-events: none; }
+.water__drop {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--water);
+  opacity: 0;
+}
+.water__drop:nth-child(1) { --dx: -30px; --dy: -36px; }
+.water__drop:nth-child(2) { --dx: -14px; --dy: -46px; }
+.water__drop:nth-child(3) { --dx:   0px; --dy: -52px; }
+.water__drop:nth-child(4) { --dx:  14px; --dy: -46px; }
+.water__drop:nth-child(5) { --dx:  30px; --dy: -36px; }
+.water__drop:nth-child(6) { --dx:  22px; --dy: -24px; }
+@keyframes water-drop-fly {
+  0%   { opacity: 0; transform: translate(0, 0) scale(.4); }
+  18%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+.water__card.is-splash .water__drop { animation: water-drop-fly .6s ease-out forwards; }
+
+/* Рябь-кольцо от точки всплеска */
+@keyframes water-ripple {
+  from { opacity: .8; transform: translate(-50%, -50%) scale(.4); }
+  to   { opacity: 0;  transform: translate(-50%, -50%) scale(3); }
+}
+.water__card.is-splash::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--water);
+  transform: translate(-50%, -50%);
+  animation: water-ripple .6s ease-out forwards;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   21. ПРОФИЛЬ: обновлённая карточка цели (герой + иконки-карточки)
+   ========================================================================== */
+.profile-summary { padding: var(--space-lg); display: grid; gap: var(--space-md); }
+.ps-hero { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+.ps-hero__title { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--clr-teal-deep); margin-top: var(--space-2xs); }
+.ps-hero__sub { font-size: var(--fs-small); color: var(--clr-muted); max-width: 42ch; }
+.ps-hero__art { color: var(--clr-teal-deep); flex-shrink: 0; }
+.ps-hero__art svg { width: 96px; height: 96px; }
+
+.ps-grid { display: grid; gap: var(--space-sm); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ps-card {
+  display: grid; gap: 2px; align-content: start;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, .5);
+  box-shadow: inset 0 0 0 1px var(--clr-line);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.ps-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-glass); }
+.ps-card__icon {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: rgba(31, 189, 142, .14);
+  color: var(--clr-emerald);
+  margin-bottom: var(--space-2xs);
+}
+.ps-card__icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ps-card__label { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--clr-muted); }
+.ps-card__value { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--clr-teal-deep); }
+.ps-card__sub { font-size: var(--fs-caption); color: var(--clr-muted); }
+.ps-card--accent { background: linear-gradient(135deg, rgba(31, 189, 142, .18), rgba(14, 125, 114, .12)); }
+.ps-card--accent .ps-card__icon { background: rgba(255, 255, 255, .5); }
+.ps-card--date .ps-card__value { font-size: var(--fs-body); }
+
+.ps-foot { display: flex; align-items: center; gap: var(--space-xs); padding-top: var(--space-sm); border-top: 1px solid var(--clr-line); }
+.ps-foot svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; color: var(--clr-emerald); flex-shrink: 0; }
+.ps-foot__note { font-size: var(--fs-small); color: var(--clr-muted); }
+
+[data-theme="dark"] .ps-card { background: rgba(18, 38, 30, .6); }
+[data-theme="dark"] .ps-card--accent { background: linear-gradient(135deg, rgba(52, 211, 153, .16), rgba(14, 125, 114, .14)); }
+[data-theme="dark"] .ps-card--accent .ps-card__icon { background: rgba(10, 24, 19, .5); }
+
+/* ==========================================================================
+   21. ПРОФИЛЬ: ПАРАМЕТРЫ В ОБЛАЧКАХ (3 × 2 / 2 × 3), светлая и тёмная тема
+   ========================================================================== */
+.profile-summary {
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-lg);
+  justify-items: stretch;
+}
+
+/* Шапка сводки */
+.psc-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+.psc-head__text { display: grid; gap: var(--space-2xs); justify-items: start; }
+.psc-title { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--clr-teal-deep); }
+.psc-sub { font-size: var(--fs-small); color: var(--clr-muted); max-width: 46ch; }
+.psc-head__art { width: 92px; height: 92px; flex-shrink: 0; color: var(--clr-emerald); }
+@media (max-width: 600px) { .psc-head__art { display: none; } }
+
+/* Сетка облачков: ровно 3 в ряд → 2 в ряд → 1 на узких экранах */
+.psc-grid {
+  display: grid;
+  gap: var(--space-md) var(--space-sm);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 860px) { .psc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 460px) { .psc-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Облачко */
+.psc-cloud {
+  --psc-fill: rgba(255, 255, 255, .82);
+  --psc-stroke: rgba(14, 125, 114, .22);
+  --psc-shine: rgba(255, 255, 255, .95);
+  position: relative;
+  aspect-ratio: 240 / 150;
+  min-height: 148px;
+  display: grid;
+  animation: psc-float 7s ease-in-out infinite;
+}
+.psc-cloud:nth-child(2) { animation-delay: -1.1s; }
+.psc-cloud:nth-child(3) { animation-delay: -2.2s; }
+.psc-cloud:nth-child(4) { animation-delay: -3.3s; }
+.psc-cloud:nth-child(5) { animation-delay: -4.4s; }
+.psc-cloud:nth-child(6) { animation-delay: -5.5s; }
+
+@keyframes psc-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+.psc-cloud__shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 10px 18px rgba(10, 75, 69, .14));
+  transition: filter var(--transition);
+}
+.psc-cloud__body { fill: var(--psc-fill); stroke: var(--psc-stroke); stroke-width: 2; }
+.psc-cloud__shine { fill: none; stroke: var(--psc-shine); stroke-width: 5; stroke-linecap: round; opacity: .75; }
+
+.psc-cloud:hover { animation-play-state: paused; }
+.psc-cloud:hover .psc-cloud__shape { filter: drop-shadow(0 16px 26px rgba(10, 75, 69, .22)); }
+
+/* Содержимое облачка — в нижней ровной части силуэта */
+.psc-cloud__inner {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  padding: 26% 14% 10%;
+  text-align: center;
+}
+.psc-cloud__icon {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(31, 189, 142, .16);
+  color: var(--clr-emerald);
+  margin-bottom: 2px;
+}
+.psc-cloud__icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.psc-cloud__label {
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--clr-muted);
+}
+.psc-cloud__value { font-family: var(--font-display); font-size: var(--fs-h3); line-height: 1.15; color: var(--clr-teal-deep); }
+.psc-cloud__value--text { font-size: var(--fs-body); }
+.psc-cloud__sub { font-size: var(--fs-caption); color: var(--clr-muted); }
+
+/* Акцентное облачко желаемого веса */
+.psc-cloud--target { --psc-fill: rgba(214, 246, 233, .92); --psc-stroke: rgba(31, 189, 142, .45); }
+.psc-cloud--target .psc-cloud__icon { background: rgba(255, 255, 255, .75); }
+.profile-summary[data-goal="gain"] .psc-cloud--target { --psc-fill: rgba(226, 240, 253, .92); --psc-stroke: rgba(46, 168, 224, .40); }
+.profile-summary[data-goal="maintain"] .psc-cloud--target { --psc-fill: rgba(233, 244, 226, .92); --psc-stroke: rgba(120, 180, 90, .40); }
+
+/* Подвал: калории, вода, кнопка */
+.psc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--clr-line);
+}
+.psc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: .55em 1.1em;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  background: rgba(31, 189, 142, .14);
+  color: var(--clr-teal-deep);
+  box-shadow: inset 0 0 0 1px rgba(31, 189, 142, .25);
+}
+.psc-chip svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.psc-chip--kcal { color: var(--clr-emerald); }
+.psc-chip--water { background: rgba(46, 168, 224, .14); box-shadow: inset 0 0 0 1px rgba(46, 168, 224, .28); color: #0d7fb5; }
+.psc-edit { margin-left: auto; }
+
+/* Тёмная тема */
+[data-theme="dark"] .psc-cloud {
+  --psc-fill: rgba(20, 42, 33, .88);
+  --psc-stroke: rgba(120, 200, 170, .26);
+  --psc-shine: rgba(160, 230, 200, .30);
+}
+[data-theme="dark"] .psc-cloud__shape { filter: drop-shadow(0 12px 22px rgba(0, 0, 0, .55)); }
+[data-theme="dark"] .psc-cloud:hover .psc-cloud__shape { filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .65)); }
+[data-theme="dark"] .psc-cloud__icon { background: rgba(52, 211, 153, .18); }
+[data-theme="dark"] .psc-cloud--target { --psc-fill: rgba(24, 58, 45, .92); --psc-stroke: rgba(52, 211, 153, .45); }
+[data-theme="dark"] .psc-cloud--target .psc-cloud__icon { background: rgba(10, 24, 19, .6); }
+[data-theme="dark"] .profile-summary[data-goal="gain"] .psc-cloud--target { --psc-fill: rgba(20, 44, 58, .92); --psc-stroke: rgba(91, 196, 240, .42); }
+[data-theme="dark"] .profile-summary[data-goal="maintain"] .psc-cloud--target { --psc-fill: rgba(30, 52, 32, .92); --psc-stroke: rgba(140, 200, 110, .42); }
+[data-theme="dark"] .psc-chip { background: rgba(52, 211, 153, .16); box-shadow: inset 0 0 0 1px rgba(52, 211, 153, .3); color: var(--clr-teal-deep); }
+[data-theme="dark"] .psc-chip--water { background: rgba(91, 196, 240, .16); box-shadow: inset 0 0 0 1px rgba(91, 196, 240, .3); color: #8fdcff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .psc-cloud { animation: none; }
+}
