@@ -24,7 +24,7 @@
       <ul class="sidebar__list">
         <li><a href="index.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Главная</a></li>
         <li><a href="diary.html" class="sidebar__link is-active"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Дневник питания</a></li>
-        <li><a href="planner.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Планировщик</a></li>
+        <li><a href="planner.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Планировщик</a></li>
         <li><a href="stats.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Статистика</a></li>
         <li><a href="profile.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль и цели</a></li>
       </ul>
@@ -87,26 +87,46 @@
         <article class="meal-card glass" data-meal="breakfast">
           <div class="meal-card__head"><h2 class="meal-card__title">Завтрак</h2><span class="meal-card__cals" data-meal-total="breakfast">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="breakfast"></ul>
-          <button class="meal-card__add" data-meal-add="breakfast"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+          <div class="meal-card__actions">
+            <button class="meal-card__add" data-meal-add="breakfast"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__photo" type="button" data-meal-photo="breakfast" aria-label="Сканировать фото для завтрака">
+              <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
+            </button>
+          </div>
         </article>
         <article class="meal-card glass" data-meal="lunch">
           <div class="meal-card__head"><h2 class="meal-card__title">Обед</h2><span class="meal-card__cals" data-meal-total="lunch">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="lunch"></ul>
-          <button class="meal-card__add" data-meal-add="lunch"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+          <div class="meal-card__actions">
+            <button class="meal-card__add" data-meal-add="lunch"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__photo" type="button" data-meal-photo="lunch" aria-label="Сканировать фото для обеда">
+              <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
+            </button>
+          </div>
         </article>
         <article class="meal-card glass" data-meal="dinner">
           <div class="meal-card__head"><h2 class="meal-card__title">Ужин</h2><span class="meal-card__cals" data-meal-total="dinner">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="dinner"></ul>
-          <button class="meal-card__add" data-meal-add="dinner"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+          <div class="meal-card__actions">
+            <button class="meal-card__add" data-meal-add="dinner"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__photo" type="button" data-meal-photo="dinner" aria-label="Сканировать фото для ужина">
+              <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
+            </button>
+          </div>
         </article>
         <article class="meal-card glass" data-meal="snack">
           <div class="meal-card__head"><h2 class="meal-card__title">Перекус</h2><span class="meal-card__cals" data-meal-total="snack">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="snack"></ul>
-          <button class="meal-card__add" data-meal-add="snack"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+          <div class="meal-card__actions">
+            <button class="meal-card__add" data-meal-add="snack"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__photo" type="button" data-meal-photo="snack" aria-label="Сканировать фото для перекуса">
+              <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
+            </button>
+          </div>
         </article>
       </section>
 
-        <!-- ===== ВОДНЫЙ БАЛАНС: норма из цели, ёмкости, журнал за день ===== -->
+      <!-- ===== ВОДНЫЙ БАЛАНС ===== -->
       <section class="water" id="water-card" aria-label="Водный баланс за день">
         <div class="water__summary glass">
           <div class="water__ring">
@@ -142,7 +162,6 @@
             <span class="water__add">+150 мл</span>
             <span class="water__label">Чашка</span>
           </button>
-
           <button class="water__card glass" type="button" data-water-add="200" aria-label="Добавить 200 мл — стакан">
             <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
             <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -154,7 +173,6 @@
             <span class="water__add">+200 мл</span>
             <span class="water__label">Стакан</span>
           </button>
-
           <button class="water__card glass" type="button" data-water-add="330" aria-label="Добавить 330 мл — бутылка">
             <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
             <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -166,8 +184,7 @@
             <span class="water__add">+330 мл</span>
             <span class="water__label">Бутылка</span>
           </button>
-
-          <button class="water__card glass" type="button" data-water-add="500" aria-label="Добавить 500 мл — длинная бутылка 0,5 литра">
+          <button class="water__card glass" type="button" data-water-add="500" aria-label="Добавить 500 мл — бутылка 0,5 литра">
             <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
             <svg viewBox="0 0 64 64" aria-hidden="true">
               <ellipse class="w-shadow" cx="32" cy="58" rx="9" ry="2.5"/>
@@ -185,6 +202,16 @@
           <ul class="water__log-list" id="water-log"></ul>
         </div>
       </section>
+
+      <!-- ===== ГАЛЕРЕЯ ФОТО БЛЮД ===== -->
+      <section class="photos glass" id="photos-card" aria-label="Мои фотографии блюд">
+        <div class="photos__head">
+          <h2 class="photos__title">Мои фото блюд</h2>
+          <span class="photos__count" id="photos-count">0</span>
+        </div>
+        <ul class="photos__grid" id="photos-grid"></ul>
+        <p class="photos__empty" id="photos-empty">Пока нет сохранённых фото — нажмите «Фото» у любого приёма пищи.</p>
+      </section>
     </section>
   </main>
 
@@ -193,7 +220,7 @@
     <span>Сделано с заботой о вашем рационе</span>
   </footer>
 
-  <!-- Окно выбора продуктов -->
+  <!-- Окно выбора продуктов: Поиск / Недавние / Фото -->
   <div class="modal" id="product-modal" hidden role="dialog" aria-modal="true" aria-label="Добавить продукты">
     <div class="modal__backdrop" data-modal-close></div>
     <div class="modal__dialog glass">
@@ -204,6 +231,7 @@
       <div class="modal__tabs" role="tablist">
         <button class="modal__tab is-active" type="button" data-tab="search" role="tab" aria-selected="true">Поиск</button>
         <button class="modal__tab" type="button" data-tab="recent" role="tab" aria-selected="false">Недавние</button>
+        <button class="modal__tab" type="button" data-tab="photos" role="tab" aria-selected="false">Фото</button>
       </div>
       <div class="modal__search" id="modal-search-wrap">
         <input id="modal-search-input" type="search" placeholder="Найти продукт…" autocomplete="off">
@@ -214,7 +242,7 @@
     </div>
   </div>
 
-  <!-- Окно порции: переключатель г/мл -->
+  <!-- Окно порции: г/мл -->
   <div class="modal" id="weight-modal" hidden role="dialog" aria-modal="true" aria-label="Изменить порцию">
     <div class="modal__backdrop" data-weight-close></div>
     <div class="modal__dialog modal__dialog--mini glass">
@@ -236,7 +264,80 @@
     </div>
   </div>
 
+  <!-- ===== СКАНЕР БЛЮДА ПО ФОТО ===== -->
+  <div class="modal" id="scan-modal" hidden role="dialog" aria-modal="true" aria-label="Сканер блюда по фото">
+    <div class="modal__backdrop" data-scan-close></div>
+    <div class="modal__dialog scan glass">
+      <div class="modal__head">
+        <h3 class="modal__mini-title">Сканер блюда · <span id="scan-meal">Завтрак</span></h3>
+        <button class="btn-soft" type="button" data-scan-close>Закрыть</button>
+      </div>
+
+      <input type="file" id="scan-file" accept="image/*" hidden>
+
+      <!-- Этап 1: выбор фото -->
+      <div class="scan__pick" id="scan-pick">
+        <button class="scan__drop" id="scan-drop" type="button">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M8 20a4 4 0 0 1 4-4h6l3-5h22l3 5h6a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4z"/>
+            <circle cx="32" cy="33" r="11"/>
+            <circle cx="32" cy="33" r="4"/>
+          </svg>
+          <strong>Выбрать фото блюда</strong>
+          <span>Откроется проводник · или перетащите файл в это окно</span>
+        </button>
+      </div>
+
+      <!-- Этап 2: сканирование -->
+      <div class="scan__busy" id="scan-busy" hidden>
+        <figure class="scan__frame">
+          <img id="scan-img" alt="Загруженное фото блюда">
+          <span class="scan__line" aria-hidden="true"></span>
+        </figure>
+        <p class="scan__status" id="scan-status">Сканирую фото…</p>
+      </div>
+
+      <!-- Этап 3: результат (только просмотр, добавление — через «+ Добавить») -->
+      <div class="scan__result" id="scan-result" hidden>
+        <figure class="scan__frame scan__frame--small">
+          <img id="scan-img-result" alt="Фото блюда">
+        </figure>
+        <p class="scan__dish" id="scan-dish">—</p>
+        <ul class="scan__items" id="scan-items"></ul>
+        <div class="scan__total">
+          <span>Итого</span>
+          <strong id="scan-total-kcal">0 ккал</strong>
+          <span class="scan__macros" id="scan-total-macros">Б 0 · Ж 0 · У 0</span>
+        </div>
+        <p class="scan__note" id="scan-note"></p>
+        <p class="scan__hint" id="scan-hint"></p>
+      </div>
+
+      <!-- Этап 4: ошибка -->
+      <div class="scan__error" id="scan-error" hidden>
+        <p class="scan__error-text" id="scan-error-text">—</p>
+        <div class="scan__actions">
+          <button class="btn-soft" type="button" id="scan-other-err">Другое фото</button>
+          <button class="btn btn--primary" type="button" id="scan-retry">Повторить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ ФОТО ===== -->
+  <div class="modal" id="confirm-modal" hidden role="dialog" aria-modal="true" aria-label="Подтверждение удаления">
+    <div class="modal__backdrop" data-confirm-close></div>
+    <div class="modal__dialog modal__dialog--mini glass">
+      <h3 class="modal__mini-title">Удалить блюдо?</h3>
+      <p class="confirm__text">Фото исчезнет из галереи. Записи, уже добавленные в рацион, останутся на месте.</p>
+      <div class="modal__mini-actions">
+        <button class="btn-soft" type="button" data-confirm-close>Отмена</button>
+        <button class="btn btn--danger" id="confirm-ok" type="button">Удалить</button>
+      </div>
+    </div>
+  </div>
+
   <script src="data/products.js"></script>
-  <script src="data/script.js?v=14"></script>
+  <script src="data/script.js?v=18"></script>
 </body>
 </html>

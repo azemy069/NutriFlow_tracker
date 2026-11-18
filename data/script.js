@@ -1,11 +1,13 @@
 /* ==========================================================================
-   NUTRIFLOW — логика приложения (ВЕРСИЯ 10)
-   ФИКС: вес больше не «залипает». Значения анкеты живут в wizardData,
-   колёса только редактируют их; скрытые шаги не сбрасывают значения.
+   NUTRIFLOW — логика приложения (ВЕРСИЯ 12)
+   · Галерея: корзина с подтверждением; удаление фото НЕ трогает рацион.
+   · Окно сканера: только просмотр результата, добавление — через «+ Добавить».
+   · Окно добавления: третья вкладка «Фото» — блюдо со всеми ингредиентами
+     и КБЖУ попадает в приём пищи без повторного сканирования.
    ========================================================================== */
 'use strict';
 
-const APP_VERSION = '10.0';
+const APP_VERSION = '12.0';
 const LOG = (...args) => console.log(`%c[NutriFlow v${APP_VERSION}]`, 'color:#0e7d72;font-weight:bold', ...args);
 
 /* ------------------ 1. УТИЛИТЫ И ДАТЫ ------------------ */
@@ -16,10 +18,13 @@ const loadJSON = (key, fallback) => {
   catch { return fallback; }
 };
 const saveJSON = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+const num0 = (n) => (Number.isFinite(+n) ? +n : 0);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const GOALS = { kcal: 1800, p: 120, f: 70, c: 200 };
 const RING_LENGTH = 327;
 const MEALS = [{ key: 'breakfast' }, { key: 'lunch' }, { key: 'dinner' }, { key: 'snack' }];
+const MEAL_LABELS = { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин', snack: 'Перекус' };
 const HISTORY_LIMIT = 20;
 const WATER_DEFAULT_ML = 2000;
 
@@ -41,11 +46,24 @@ const calcPortion = (p, amount, unit = 'g') => {
   const k = toGrams(p, amount, unit) / 100;
   return { kcal: Math.round(p.kcal * k), p: +(p.p * k).toFixed(1), f: +(p.f * k).toFixed(1), c: +(p.c * k).toFixed(1) };
 };
+const itemProduct = (item) => {
+  const db = PRODUCT_MAP.get(item.id);
+  if (db) return db;
+  if (item && item.custom) {
+    return {
+      id: 'custom', cat: 'custom', name: item.custom.name || 'Блюдо с фото',
+      kcal: num0(item.custom.kcal100), p: num0(item.custom.p100),
+      f: num0(item.custom.f100), c: num0(item.custom.c100),
+    };
+  }
+  return null;
+};
 
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dateKey = (offset = 0) => { const d = new Date(); d.setDate(d.getDate() + offset); return fmtDate(d); };
 const parseKey = (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
 const fmtFullDate = (d) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).replace(/\s?г\.$/, '');
+const fmtDateTime = (ts) => new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const dateTitle = (key) => {
   const plain = parseKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   if (key === dateKey(0)) return `Сегодня, ${plain}`;
@@ -77,7 +95,7 @@ function showToast(message) {
   el.textContent = message;
   el.classList.add('is-visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2200);
+  toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2600);
 }
 function toggleTheme() {
   const next = getTheme() === 'dark' ? 'light' : 'dark';
@@ -113,6 +131,7 @@ function registerUser(name, email, password) {
   saveJSON(dbKey(user.id, 'weight'), []);
   saveJSON(dbKey(user.id, 'goals'), { ...GOALS });
   saveJSON(dbKey(user.id, 'water'), {});
+  saveJSON(dbKey(user.id, 'photos'), []);
   setSession(user.id);
   LOG('Зарегистрирован:', user.email, '| uid =', user.id);
   return { user };
@@ -130,6 +149,7 @@ function loginUser(email, password) {
 function loadScope(uid) {
   const diary = loadJSON(dbKey(uid, 'diary'), {});
   const water = loadJSON(dbKey(uid, 'water'), {});
+  const photos = loadJSON(dbKey(uid, 'photos'), []);
   return {
     diary: diary && typeof diary === 'object' ? diary : {},
     history: loadJSON(dbKey(uid, 'history'), []),
@@ -137,15 +157,16 @@ function loadScope(uid) {
     goals: loadJSON(dbKey(uid, 'goals'), null) || { ...GOALS },
     profile: loadJSON(dbKey(uid, 'profile'), null),
     water: water && typeof water === 'object' ? water : {},
+    photos: Array.isArray(photos) ? photos : [],
   };
 }
 
 /* ------------------ 4. СОСТОЯНИЕ ------------------ */
 const state = {
   uid: scopeUid(), date: dateKey(0), dayOffset: 0,
-  diary: {}, history: [], weight: [], goals: { ...GOALS }, profile: null, water: {},
+  diary: {}, history: [], weight: [], goals: { ...GOALS }, profile: null, water: {}, photos: [],
   modalMeal: null, modalTab: 'search', modalQuery: '',
-  selected: new Map(), weightTarget: null,
+  selected: new Map(), photoSelected: new Set(), weightTarget: null,
 };
 function switchScope() {
   const scope = loadScope(scopeUid());
@@ -153,9 +174,9 @@ function switchScope() {
   state.date = dateKey(state.dayOffset);
   state.diary = scope.diary; state.history = scope.history;
   state.weight = scope.weight; state.goals = scope.goals;
-  state.profile = scope.profile; state.water = scope.water;
+  state.profile = scope.profile; state.water = scope.water; state.photos = scope.photos;
   state.modalMeal = null; state.modalQuery = '';
-  state.selected.clear(); state.weightTarget = null;
+  state.selected.clear(); state.photoSelected.clear(); state.weightTarget = null;
   renderUserBadge();
   LOG('Активный профиль:', state.uid);
 }
@@ -181,14 +202,14 @@ const dayEntries = () => {
 };
 const persistDiary = () => { state.uid = scopeUid(); saveJSON(dbKey(state.uid, 'diary'), state.diary); };
 const persistHistory = () => { state.uid = scopeUid(); saveJSON(dbKey(state.uid, 'history'), state.history); };
-function rerenderAll() { renderUserBadge(); renderDate(); renderMeals(); renderSummary(); renderWater(); }
+function rerenderAll() { renderUserBadge(); renderDate(); renderMeals(); renderSummary(); renderWater(); renderPhotos(); }
 
 /* ------------------ 5. СВОДКА ДНЯ ------------------ */
 function dayTotals() {
   const totals = { kcal: 0, p: 0, f: 0, c: 0 };
   const day = dayEntries();
   MEALS.forEach(({ key }) => (day[key] || []).forEach((item) => {
-    const p = PRODUCT_MAP.get(item.id);
+    const p = itemProduct(item);
     if (!p) return;
     const portion = calcPortion(p, item.weight, item.unit);
     totals.kcal += portion.kcal; totals.p += portion.p; totals.f += portion.f; totals.c += portion.c;
@@ -217,15 +238,15 @@ const renderDate = () => { const el = $('#diary-date'); if (el) el.textContent =
 
 /* ------------------ 6. РЕНДЕР ПРИЁМОВ ПИЩИ ------------------ */
 function mealItemTemplate(item, index) {
-  const p = PRODUCT_MAP.get(item.id);
+  const p = itemProduct(item);
   if (!p) return '';
   const unit = item.unit === 'ml' ? 'ml' : 'g';
   const portion = calcPortion(p, item.weight, unit);
   return `<li class="meal-item" data-index="${index}">
-    <span class="meal-item__name">${p.name}</span>
+    <span class="meal-item__name">${esc(p.name)}</span>
     <button class="meal-item__weight" data-action="edit-weight" title="Нажмите, чтобы изменить порцию">${item.weight} ${unitLabel(unit)}</button>
     <span class="meal-item__cals">${portion.kcal} ккал</span>
-    <button class="meal-item__delete" data-action="delete" aria-label="Удалить «${p.name}»">
+    <button class="meal-item__delete" data-action="delete" aria-label="Удалить «${esc(p.name)}»">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
     </button>
   </li>`;
@@ -239,7 +260,7 @@ function renderMeals() {
     list.innerHTML = items.length ? items.map(mealItemTemplate).join('') : '<li class="meal-card__empty">Пока ничего не добавлено</li>';
     if (total) {
       const kcal = items.reduce((sum, item) => {
-        const p = PRODUCT_MAP.get(item.id);
+        const p = itemProduct(item);
         return p ? sum + calcPortion(p, item.weight, item.unit).kcal : sum;
       }, 0);
       total.textContent = `${kcal} ккал`;
@@ -247,11 +268,14 @@ function renderMeals() {
   });
 }
 
-/* ------------------ 7. ОКНО ВЫБОРА ПРОДУКТОВ ------------------ */
+/* ------------------ 7. ОКНО ВЫБОРА: ПОИСК / НЕДАВНИЕ / ФОТО ------------------ */
 let modalEl = null, modalList = null, modalSearch = null, modalSave = null;
+let weightModal = null, weightInput = null, scanModal = null, confirmModal = null;
+
 function openModal(mealKey) {
   if (!modalEl) return;
-  state.modalMeal = mealKey; state.modalQuery = ''; state.selected.clear();
+  state.modalMeal = mealKey; state.modalQuery = '';
+  state.selected.clear(); state.photoSelected.clear();
   modalSearch.value = '';
   modalEl.hidden = false; document.body.classList.add('no-scroll');
   switchTab('search'); updateSaveBtn(); modalSearch.focus();
@@ -276,17 +300,36 @@ function rowTemplate(p, lastWeight, lastUnit) {
   const unit = lastUnit || (isDrink(p) ? 'ml' : 'g');
   return `<li class="modal__item">
     <button class="modal__item-btn ${selected ? 'is-selected' : ''}" data-product="${p.id}" data-last="${lastWeight ?? ''}" data-last-unit="${unit}">
-      <span class="modal__item-name">${p.name}</span>
+      <span class="modal__item-name">${esc(p.name)}</span>
       ${lastWeight ? `<span class="modal__item-last">последний раз ${lastWeight} ${unitLabel(unit)}</span>` : ''}
       <span class="modal__item-kcal">${p.kcal} ккал / 100 ${isDrink(p) ? 'мл' : 'г'}</span>
       <span class="modal__item-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
     </button>
   </li>`;
 }
+/* Вкладка «Фото»: карточки сохранённых снимков с калориями справа */
+function photoRows() {
+  return (state.photos || []).map((ph) => {
+    const sel = state.photoSelected.has(ph.id);
+    return `<li class="modal__item">
+      <button class="modal__item-btn modal__item-btn--photo ${sel ? 'is-selected' : ''}" data-photo-pick="${ph.id}">
+        <img class="modal__photo-thumb" src="${ph.img}" alt="" loading="lazy">
+        <span class="modal__item-name">${esc(ph.dish)}</span>
+        <span class="modal__item-kcal">${ph.kcal} ккал</span>
+        <span class="modal__item-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+      </button>
+    </li>`;
+  });
+}
 function renderModalList() {
   if (!modalList) return;
-  const rows = state.modalTab === 'search' ? searchRows() : recentRows();
-  modalList.innerHTML = rows.length ? rows.join('') : '<li class="modal__empty">Ничего не найдено — попробуйте другой запрос</li>';
+  const rows = state.modalTab === 'search' ? searchRows()
+    : state.modalTab === 'recent' ? recentRows()
+    : photoRows();
+  const emptyMsg = state.modalTab === 'photos'
+    ? 'Пока нет фото — отсканируйте блюдо кнопкой «Фото» у приёма пищи.'
+    : 'Ничего не найдено — попробуйте другой запрос';
+  modalList.innerHTML = rows.length ? rows.join('') : `<li class="modal__empty">${emptyMsg}</li>`;
 }
 function searchRows() {
   const q = state.modalQuery.trim().toLowerCase();
@@ -309,21 +352,46 @@ function toggleProduct(btn) {
   }
   updateSaveBtn();
 }
+function togglePhotoPick(btn) {
+  const id = btn.dataset.photoPick;
+  if (state.photoSelected.has(id)) { state.photoSelected.delete(id); btn.classList.remove('is-selected'); }
+  else { state.photoSelected.add(id); btn.classList.add('is-selected'); }
+  updateSaveBtn();
+}
 function updateSaveBtn() {
   if (!modalSave) return;
-  const n = state.selected.size;
+  const n = state.selected.size + state.photoSelected.size;
   modalSave.textContent = n > 0 ? `Сохранить (${n})` : 'Сохранить';
   modalSave.disabled = n === 0;
 }
+/* Ингредиенты блюда с фото → в приём пищи, без повторного сканирования */
+function addPhotoItems(items, mealKey) {
+  const bucket = dayEntries()[mealKey];
+  (items || []).forEach((it) => {
+    if (it.matchedId && PRODUCT_MAP.has(it.matchedId)) {
+      bucket.push({ id: it.matchedId, weight: it.grams, unit: 'g' });
+    } else {
+      bucket.push({
+        custom: { name: it.name, kcal100: it.kcal100, p100: it.p100, f100: it.f100, c100: it.c100 },
+        weight: it.grams, unit: 'g',
+      });
+    }
+  });
+}
 function saveSelection() {
-  const target = dayEntries()[state.modalMeal];
+  const bucket = dayEntries()[state.modalMeal];
   state.selected.forEach(({ weight, unit }, id) => {
-    target.push({ id, weight, unit });
+    bucket.push({ id, weight, unit });
     pushHistory(id, weight, unit);
+  });
+  state.photoSelected.forEach((pid) => {
+    const ph = (state.photos || []).find((p) => p.id === pid);
+    if (ph) addPhotoItems(ph.items, state.modalMeal);
   });
   persistDiary(); renderMeals(); renderSummary(); closeModal();
 }
 function pushHistory(id, weight, unit) {
+  if (!PRODUCT_MAP.has(id)) return;
   state.history = state.history.filter((r) => r.id !== id);
   state.history.unshift({ id, weight, unit, ts: Date.now() });
   state.history = state.history.slice(0, HISTORY_LIMIT);
@@ -331,7 +399,6 @@ function pushHistory(id, weight, unit) {
 }
 
 /* ------------------ 8. ПОРЦИЯ: ГРАММЫ / МИЛЛИЛИТРЫ ------------------ */
-let weightModal = null, weightInput = null;
 function setUnitUI(unit) {
   const toggle = $('#weight-unit-toggle');
   if (toggle) $$('.unit-switch__btn', toggle).forEach((btn) => {
@@ -345,7 +412,7 @@ function setUnitUI(unit) {
 function openWeightModal(mealKey, index) {
   if (!weightModal) return;
   const item = dayEntries()[mealKey][index];
-  const p = PRODUCT_MAP.get(item.id);
+  const p = itemProduct(item);
   if (!p) return;
   const unit = item.unit === 'ml' ? 'ml' : item.unit === 'g' ? 'g' : (isDrink(p) ? 'ml' : 'g');
   state.weightTarget = { meal: mealKey, index, unit };
@@ -363,7 +430,7 @@ function closeWeightModal() {
 function setWeightUnit(next) {
   if (!state.weightTarget || next === state.weightTarget.unit) return;
   const item = dayEntries()[state.weightTarget.meal][state.weightTarget.index];
-  const p = PRODUCT_MAP.get(item.id);
+  const p = itemProduct(item);
   if (!p) return;
   const cur = Number(weightInput.value) || 0;
   const density = drinkDensity(p);
@@ -376,7 +443,7 @@ function setWeightUnit(next) {
 function updateWeightHint() {
   if (!state.weightTarget || !weightInput) return;
   const item = dayEntries()[state.weightTarget.meal][state.weightTarget.index];
-  const p = PRODUCT_MAP.get(item.id);
+  const p = itemProduct(item);
   if (!p) return;
   const amount = Math.max(Number(weightInput.value) || 0, 0);
   $('#weight-kcal').textContent = `${calcPortion(p, amount, state.weightTarget.unit).kcal} ккал`;
@@ -464,6 +531,339 @@ function deleteWater(index) {
   persistWater(); renderWater();
 }
 
+/* ==========================================================================
+   9.6. СКАНЕР БЛЮДА ПО ФОТО (polza.ai, две модели с fallback)
+   ========================================================================== */
+const POLZA_URL = 'https://polza.ai/api/v1/chat/completions';
+/* ВРЕМЕННЫЙ ключ — потом замени только эту строку */
+const POLZA_KEY = 'pza_b7larVmCnOBU30Ubv5waAoL5qtab0QJO';
+const SCAN_MODELS = ['google/gemini-3.7-flash', 'google/gemini-3-pro-preview'];
+const PHOTOS_LIMIT = 12;
+
+const SCAN_PROMPT = [
+  'Ты нутрициолог и эксперт по оценке еды на фотографиях.',
+  'Определи все съедобные позиции на снимке блюда.',
+  'Для каждой позиции оцени массу в граммах и КБЖУ НА 100 ГРАММ.',
+  'Соусы, масло, сметану, сахар и заправку выделяй отдельными позициями.',
+  'Напитки указывай в граммах (плотность примерно 1).',
+  'Отвечай ТОЛЬКО валидным JSON без markdown и пояснений, схема:',
+  '{"dish":"короткое название блюда","items":[{"name":"Пельмени","grams":250,"kcal100":275,"p100":12,"f100":14,"c100":25}],"notes":"краткая оговорка о погрешности"}',
+  'Если еды на фото нет, верни {"dish":"","items":[],"notes":"причина"}.',
+].join('\n');
+
+const scan = {
+  meal: 'breakfast', dataUrl: '', thumb: '', items: [], dish: '', note: '',
+  model: '', busy: false, seq: 0, photoId: null, viewMode: false,
+};
+
+const shrinkImage = (dataUrl, maxSide, quality) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => {
+    const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * k));
+    c.height = Math.max(1, Math.round(img.height * k));
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    resolve({ url: c.toDataURL('image/jpeg', quality), w: c.width, h: c.height });
+  };
+  img.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+  img.src = dataUrl;
+});
+
+function extractJson(text) {
+  const t = String(text || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  const a = t.indexOf('{');
+  const b = t.lastIndexOf('}');
+  if (a < 0 || b <= a) throw new Error('Модель не вернула JSON');
+  return JSON.parse(t.slice(a, b + 1));
+}
+
+async function scanRequest(model) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 90000);
+  try {
+    const res = await fetch(POLZA_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${POLZA_KEY}` },
+      body: JSON.stringify({
+        model,
+        max_tokens: 6000,
+        reasoning_effort: 'low',
+        temperature: model.includes('gemini-3') ? 1 : 0.2,
+        messages: [
+          { role: 'system', content: 'Ты нутрициолог. Отвечай только валидным JSON без markdown.' },
+          { role: 'user', content: [
+            { type: 'text', text: SCAN_PROMPT },
+            { type: 'image_url', image_url: { url: scan.dataUrl } },
+          ] },
+        ],
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      const err = new Error(`${model}: ответ ${res.status}${t ? ' · ' + t.slice(0, 140) : ''}`);
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (!content) {
+      const err = new Error(`${model}: пустой ответ модели`);
+      err.status = 502;
+      throw err;
+    }
+    return extractJson(typeof content === 'string' ? content : JSON.stringify(content));
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      const err = new Error(`${model} не ответила за 90 секунд`);
+      err.status = 408;
+      throw err;
+    }
+    if (e instanceof TypeError) throw new Error('Браузер заблокировал запрос (CORS или сеть). Нужен локальный прокси-сервер.');
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+
+const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const normName = (s) => String(s).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+function matchProduct(name) {
+  const qn = normName(name);
+  if (!qn) return null;
+  const qt = qn.split(' ').filter((w) => w.length > 2);
+  let best = null;
+  for (const p of SAFE_PRODUCTS) {
+    const pn = normName(p.name);
+    let hit = 0;
+    for (const w of qt) if (pn.includes(w)) hit++;
+    const score = hit / Math.max(qt.length, 1) + ((pn.includes(qn) || qn.includes(pn)) ? 0.5 : 0);
+    if (score >= 0.6 && (!best || score > best.score)) best = { id: p.id, score };
+  }
+  return best ? best.id : null;
+}
+function normalizeScanItems(raw) {
+  const arr = Array.isArray(raw?.items) ? raw.items : [];
+  return arr.slice(0, 12).map((it) => ({
+    name: String(it.name || 'Позиция').slice(0, 60),
+    grams: Math.min(5000, Math.max(1, Math.round(num0(it.grams) || 100))),
+    kcal100: num0(it.kcal100), p100: num0(it.p100), f100: num0(it.f100), c100: num0(it.c100),
+    matchedId: matchProduct(it.name),
+  })).filter((it) => it.name);
+}
+const scanPortion = (it) => {
+  const db = it.matchedId ? PRODUCT_MAP.get(it.matchedId) : null;
+  if (db) return calcPortion(db, it.grams, 'g');
+  const k = it.grams / 100;
+  return {
+    kcal: Math.round(num0(it.kcal100) * k),
+    p: +(num0(it.p100) * k).toFixed(1),
+    f: +(num0(it.f100) * k).toFixed(1),
+    c: +(num0(it.c100) * k).toFixed(1),
+  };
+};
+function scanTotals() {
+  const t = { kcal: 0, p: 0, f: 0, c: 0 };
+  scan.items.forEach((it) => { const m = scanPortion(it); t.kcal += m.kcal; t.p += m.p; t.f += m.f; t.c += m.c; });
+  t.p = Math.round(t.p); t.f = Math.round(t.f); t.c = Math.round(t.c);
+  return t;
+}
+
+function setScanStage(stage) {
+  $('#scan-pick').hidden = stage !== 'pick';
+  $('#scan-busy').hidden = stage !== 'busy';
+  $('#scan-result').hidden = stage !== 'result';
+  $('#scan-error').hidden = stage !== 'error';
+}
+function openScan(meal) {
+  if (!scanModal) return;
+  scan.seq++;
+  scan.meal = meal; scan.photoId = null; scan.busy = false; scan.viewMode = false;
+  $('#scan-meal').textContent = MEAL_LABELS[meal] || 'Приём пищи';
+  setScanStage('pick');
+  scanModal.hidden = false;
+  document.body.classList.add('no-scroll');
+  $('#scan-file').click();
+}
+function closeScan() {
+  if (!scanModal) return;
+  scan.seq++; scan.busy = false;
+  scanModal.hidden = true;
+  document.body.classList.remove('no-scroll');
+}
+async function handleScanFile(file) {
+  if (!file || !file.type.startsWith('image/')) { showToast('Нужен файл изображения'); return; }
+  const fr = new FileReader();
+  fr.onload = async () => {
+    try {
+      const send = await shrinkImage(String(fr.result), 1024, 0.8);
+      const store = await shrinkImage(String(fr.result), 560, 0.62);
+      scan.dataUrl = send.url; scan.thumb = store.url; scan.photoId = null; scan.viewMode = false;
+      runScan();
+    } catch (e) {
+      $('#scan-error-text').textContent = e.message || 'Не удалось прочитать фото';
+      setScanStage('error');
+    }
+  };
+  fr.onerror = () => { $('#scan-error-text').textContent = 'Не удалось прочитать файл'; setScanStage('error'); };
+  fr.readAsDataURL(file);
+}
+async function runScan() {
+  if (!scan.dataUrl) { setScanStage('pick'); return; }
+  const token = ++scan.seq;
+  scan.busy = true;
+  setScanStage('busy');
+  $('#scan-img').src = scan.dataUrl;
+  const failures = [];
+  for (const model of SCAN_MODELS) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      $('#scan-status').textContent =
+        `Сканирую фото · ${model.replace('google/', '')}${attempt > 1 ? ' · повтор ' + attempt : ''}…`;
+      try {
+        const raw = await scanRequest(model);
+        if (token !== scan.seq) return;
+        const items = normalizeScanItems(raw);
+        if (!items.length) throw new Error(raw?.notes || 'На фото не найдено еды');
+        scan.items = items;
+        scan.dish = String(raw.dish || items.map((i) => i.name).join(', ')).slice(0, 90);
+        scan.note = String(raw.notes || '').slice(0, 160);
+        scan.model = model;
+        saveScanPhoto();
+        renderScanResult();
+        setScanStage('result');
+        scan.busy = false;
+        return;
+      } catch (e) {
+        if (token !== scan.seq) return;
+        failures.push(e.message);
+        LOG('Сканер: отказ', model, '| попытка', attempt, '|', e.message);
+        const retryable = RETRYABLE.has(e.status) || /502|503|429|500|504|не ответила/i.test(e.message);
+        if (attempt === 1 && retryable) {
+          await sleep(1500);
+          if (token !== scan.seq) return;
+          continue;
+        }
+        break;
+      }
+    }
+  }
+  scan.busy = false;
+  $('#scan-error-text').textContent = failures.join(' | ') || 'Модели не ответили. Попробуйте ещё раз.';
+  setScanStage('error');
+}
+function renderScanResult() {
+  $('#scan-img-result').src = scan.thumb || scan.dataUrl;
+  $('#scan-dish').textContent = scan.dish || 'Блюдо';
+  $('#scan-items').innerHTML = scan.items.map((it) => {
+    const m = scanPortion(it);
+    return `<li class="scan__item">
+      <span class="scan__item-name">${esc(it.name)}${it.matchedId ? ' <em class="scan__item-db">из базы</em>' : ''}</span>
+      <span class="scan__item-g">${it.grams} г</span>
+      <span class="scan__item-kcal">${m.kcal} ккал</span>
+      <span class="scan__item-macros">Б ${trimNum(m.p)} · Ж ${trimNum(m.f)} · У ${trimNum(m.c)}</span>
+    </li>`;
+  }).join('');
+  const t = scanTotals();
+  $('#scan-total-kcal').textContent = `${t.kcal} ккал`;
+  $('#scan-total-macros').textContent = `Б ${trimNum(t.p)} · Ж ${trimNum(t.f)} · У ${trimNum(t.c)}`;
+  $('#scan-note').textContent = [scan.note, scan.model ? `модель: ${scan.model.replace('google/', '')}` : ''].filter(Boolean).join(' · ');
+  const hint = $('#scan-hint');
+  if (hint) hint.textContent = scan.viewMode
+    ? 'Фото из галереи. Чтобы добавить блюдо в приём пищи: «+ Добавить» → вкладка «Фото».'
+    : 'Фото сохранено в галерею. Чтобы добавить блюдо в приём пищи: «+ Добавить» → вкладка «Фото».';
+}
+function saveScanPhoto() {
+  const t = scanTotals();
+  const photo = {
+    id: 'ph' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    ts: Date.now(),
+    date: dateKey(0),
+    meal: scan.meal,
+    dish: scan.dish,
+    kcal: t.kcal,
+    img: scan.thumb,
+    model: scan.model,
+    items: scan.items.map((i) => ({ ...i })),
+  };
+  state.photos = [photo, ...(state.photos || [])];
+  const ok = persistPhotos();
+  scan.photoId = photo.id;
+  renderPhotos();
+  if (!ok) showToast('Фото не сохранено: хранилище браузера переполнено');
+}
+
+/* ---------- Галерея фото ---------- */
+function persistPhotos() {
+  state.uid = scopeUid();
+  let list = (state.photos || []).slice(0, PHOTOS_LIMIT);
+  while (list.length) {
+    try { saveJSON(dbKey(state.uid, 'photos'), list); state.photos = list; return true; }
+    catch { list = list.slice(0, -1); }
+  }
+  try { saveJSON(dbKey(state.uid, 'photos'), []); state.photos = []; } catch { /* совсем нет места */ }
+  return false;
+}
+function renderPhotos() {
+  const grid = $('#photos-grid');
+  if (!grid) return;
+  const list = state.photos || [];
+  const count = $('#photos-count'); if (count) count.textContent = String(list.length);
+  const empty = $('#photos-empty'); if (empty) empty.hidden = list.length > 0;
+  grid.innerHTML = list.map((ph) => `<li class="photo-card">
+    <button class="photo-card__open" type="button" data-photo-open="${ph.id}" aria-label="Открыть фото: ${esc(ph.dish)}">
+      <img src="${ph.img}" alt="${esc(ph.dish)}" loading="lazy">
+    </button>
+    <div class="photo-card__body">
+      <strong class="photo-card__name">${esc(ph.dish)}</strong>
+      <span class="photo-card__kcal">${ph.kcal} ккал</span>
+      <span class="photo-card__meta">${MEAL_LABELS[ph.meal] || ''} · ${fmtDateTime(ph.ts)}</span>
+    </div>
+    <button class="photo-card__del" type="button" data-photo-del="${ph.id}" aria-label="Удалить фото: ${esc(ph.dish)}" title="Удалить фото">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+  </li>`).join('');
+}
+function openScanView(id) {
+  const ph = (state.photos || []).find((p) => p.id === id);
+  if (!ph || !scanModal) return;
+  scan.seq++;
+  scan.meal = ph.meal; scan.photoId = ph.id; scan.viewMode = true;
+  scan.items = (ph.items || []).map((i) => ({ ...i }));
+  scan.dish = ph.dish; scan.thumb = ph.img; scan.dataUrl = ph.img;
+  scan.model = ph.model || ''; scan.busy = false;
+  scan.note = `Сохранено ${fmtDateTime(ph.ts)}`;
+  $('#scan-meal').textContent = MEAL_LABELS[ph.meal] || 'Приём пищи';
+  renderScanResult();
+  setScanStage('result');
+  scanModal.hidden = false;
+  document.body.classList.add('no-scroll');
+}
+/* Удаление фото из галереи: записи в рационе НЕ трогаем */
+function deletePhoto(id) {
+  state.photos = (state.photos || []).filter((p) => p.id !== id);
+  state.photoSelected.delete(id);
+  persistPhotos();
+  renderPhotos();
+  showToast('Фото удалено из галереи');
+}
+let pendingDeletePhoto = null;
+function openConfirmDelete(id) {
+  pendingDeletePhoto = id;
+  if (confirmModal) { confirmModal.hidden = false; document.body.classList.add('no-scroll'); }
+}
+function closeConfirmDelete() {
+  pendingDeletePhoto = null;
+  if (confirmModal) { confirmModal.hidden = true; document.body.classList.remove('no-scroll'); }
+}
+function confirmDeletePhoto() {
+  if (pendingDeletePhoto) deletePhoto(pendingDeletePhoto);
+  closeConfirmDelete();
+}
+
 /* ------------------ 10. АВТОРИЗАЦИЯ, ПРОФИЛЬ, СВОДКА ЦЕЛИ ------------------ */
 let authMode = null;
 function setAuthMode(mode) {
@@ -499,10 +899,8 @@ function submitAuth(event) {
   $('#auth-pass').value = '';
   switchScope(); renderProfile(); rerenderAll();
 }
-
 const GOAL_LABELS = { lose: 'Похудение', maintain: 'Поддержание веса', gain: 'Набор массы' };
 const ACTIVITY_LABELS = { sedentary: 'Сидячий', light: 'Немного активный', active: 'Часто активный', training: 'Регулярные тренировки' };
-
 function renderProfileSummary() {
   const card = $('#profile-summary'), empty = $('#profile-empty');
   if (!card || !empty) return;
@@ -510,10 +908,8 @@ function renderProfileSummary() {
   if (!p) { card.hidden = true; empty.hidden = false; return; }
   empty.hidden = true; card.hidden = false;
   card.dataset.goal = p.goal || 'lose';
-
   const plan = computePlanData({ ...p, pace: p.paceKgWeek });
   const set = (id, text) => { const el = $(`#${id}`); if (el) el.textContent = text; };
-
   set('summary-goal', GOAL_LABELS[p.goal] || 'Цель');
   set('summary-height', `${trimNum(p.heightCm)} см`);
   set('summary-weight', `${trimNum(p.weightKg)} кг`);
@@ -526,7 +922,6 @@ function renderProfileSummary() {
   set('summary-water', `${trimNum(plan.waterL)} л воды`);
   set('summary-note', `Калории: ${plan.targetKcal.toLocaleString('ru-RU')} ккал/день · Вода: ${trimNum(plan.waterL)} л/день`);
 }
-
 function renderProfile() {
   const authView = $('#auth-view'), profileView = $('#profile-view');
   if (!authView || !profileView) return;
@@ -542,7 +937,6 @@ function renderProfile() {
     $('#auth-name').value = ''; $('#auth-email').value = ''; $('#auth-pass').value = '';
   }
 }
-
 function initAuth() {
   if (!$('#auth-view') || !$('#profile-view')) return;
   $('#auth-login-btn').addEventListener('click', () => setAuthMode('login'));
@@ -560,8 +954,7 @@ function initAuth() {
 }
 
 /* ==========================================================================
-   11. МАСТЕР ЦЕЛИ + РАСЧЁТ ПЛАНА
-   Единый источник истины — wizardData. Колёса лишь редактируют его.
+   11. МАСТЕР ЦЕЛИ + РАСЧЁТ ПЛАНА (офлайн)
    ========================================================================== */
 const WIZARD_TOTAL = 9;
 const WHEEL_ITEM_H = 56;
@@ -570,18 +963,10 @@ const KCAL_PER_KG = 7700;
 const ACTIVITY_FACTORS = { sedentary: 1.2, light: 1.375, active: 1.55, training: 1.725 };
 const WATER_ACTIVITY = { sedentary: 0, light: 0.15, active: 0.35, training: 0.5 };
 const MONTHS_SHORT = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
-
-const wizardData = {
-  goal: null, sex: null,
-  birth: { day: 1, month: 1, year: 1999 },
-  height: 170, weight: 70, target: 65,
-  activity: null, pace: 0.5,
-};
-
+const wizardData = { goal: null, sex: null, birth: { day: 1, month: 1, year: 1999 }, height: 170, weight: 70, target: 65, activity: null, pace: 0.5 };
 let wizardStep = 1, wheelsReady = false, lastPlan = null;
 const wheels = new Map();
 const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-
 const computeAge = (birth) => {
   const now = new Date();
   let age = now.getFullYear() - birth.year;
@@ -611,23 +996,6 @@ function computePlanData(d) {
 }
 const paceCaption = (v) => v <= 0.2 ? 'Надежно' : v <= 0.4 ? 'Умеренно' : v <= 0.6 ? 'Сбалансировано' : v <= 0.8 ? 'Заметно' : 'Быстро';
 
-/* План строится ИЗ СОХРАНЁННЫХ ЗНАЧЕНИЙ, а не из живых колёс */
-function computePlan() {
-  captureStepWheels(wizardStep);
-  const draft = {
-    sex: wizardData.sex || 'female',
-    birth: { ...wizardData.birth },
-    heightCm: wizardData.height,
-    weightKg: wizardData.weight,
-    targetKg: wizardData.target,
-    activity: wizardData.activity,
-    pace: wizardData.pace,
-  };
-  const plan = computePlanData(draft);
-  return { ...plan, draft, current: draft.weightKg, target: draft.targetKg, diff: draft.weightKg - draft.targetKg };
-}
-
-/* ---------- Колесо выбора ---------- */
 function createWheel(host, values, initial, format) {
   const viewport = document.createElement('div');
   viewport.className = 'wheel__viewport';
@@ -650,13 +1018,9 @@ function createWheel(host, values, initial, format) {
   });
   viewport.append(pad());
   host.append(viewport);
-
   const wheel = { host, viewport, values, index: 0 };
   wheels.set(host.dataset.wheel, wheel);
-
-  /* Колесо видно только когда его шаг открыт */
   const isVisible = () => viewport.offsetParent !== null;
-
   function scrollToIndex(i, smooth = true) {
     wheel.index = Math.max(0, Math.min(values.length - 1, i));
     viewport.scrollTo({ top: wheel.index * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
@@ -670,9 +1034,6 @@ function createWheel(host, values, initial, format) {
       el.style.opacity = d < .5 ? '1' : d < 1.5 ? '.55' : '.3';
     });
   }
-
-  /* ФИКС: скрытое колесо (scrollTop сбрасывается в 0) больше не
-     перезаписывает свой индекс — иначе вес откатывался к минимуму. */
   let snapTimer = 0;
   viewport.addEventListener('scroll', () => {
     if (!isVisible()) return;
@@ -683,7 +1044,6 @@ function createWheel(host, values, initial, format) {
       scrollToIndex(Math.round(viewport.scrollTop / WHEEL_ITEM_H));
     }, 120);
   }, { passive: true });
-
   let wheelAcc = 0, wheelLock = 0;
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -697,16 +1057,12 @@ function createWheel(host, values, initial, format) {
     wheelAcc = 0;
     scrollToIndex(wheel.index + dir);
   }, { passive: false });
-
   viewport.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); scrollToIndex(wheel.index + 1); }
     if (e.key === 'ArrowUp') { e.preventDefault(); scrollToIndex(wheel.index - 1); }
   });
-
   wheel.set = (v, smooth = false) => { const i = values.indexOf(v); scrollToIndex(i === -1 ? 0 : i, smooth); };
   wheel.get = () => values[wheel.index];
-  /* Чтение учитывает реальное положение: быстрый тап «Далее» сразу
-     после прокрутки тоже сохраняет выбранное значение */
   wheel.read = () => {
     if (isVisible()) {
       const i = Math.max(0, Math.min(values.length - 1, Math.round(viewport.scrollTop / WHEEL_ITEM_H)));
@@ -714,11 +1070,9 @@ function createWheel(host, values, initial, format) {
     }
     return values[wheel.index];
   };
-
   requestAnimationFrame(() => wheel.set(initial, false));
   return wheel;
 }
-
 function ensureWheels() {
   if (wheelsReady) return;
   wheelsReady = true;
@@ -732,16 +1086,10 @@ function ensureWheels() {
   createWheel($('[data-wheel="t-int"]'), range(30, 200), Math.floor(wizardData.target));
   createWheel($('[data-wheel="t-dec"]'), range(0, 9), Math.round((wizardData.target % 1) * 10));
 }
-
-/* Забираем значения ТОЛЬКО текущего шага перед уходом с него */
 function captureStepWheels(step) {
   if (!wheelsReady) return;
   if (step === 3) {
-    wizardData.birth = {
-      day: wheels.get('b-day').read(),
-      month: wheels.get('b-month').read(),
-      year: wheels.get('b-year').read(),
-    };
+    wizardData.birth = { day: wheels.get('b-day').read(), month: wheels.get('b-month').read(), year: wheels.get('b-year').read() };
   } else if (step === 4) {
     wizardData.height = wheels.get('h-int').read() + wheels.get('h-dec').read() / 10;
   } else if (step === 5) {
@@ -750,8 +1098,6 @@ function captureStepWheels(step) {
     wizardData.target = wheels.get('t-int').read() + wheels.get('t-dec').read() / 10;
   }
 }
-
-/* Центрируем колёса открываемого шага на сохранённых значениях */
 function syncStepWheels(step) {
   if (!wheelsReady) return;
   const apply = () => {
@@ -773,7 +1119,16 @@ function syncStepWheels(step) {
   apply();
   requestAnimationFrame(apply);
 }
-
+function computePlan() {
+  captureStepWheels(wizardStep);
+  const draft = {
+    sex: wizardData.sex || 'female', birth: { ...wizardData.birth },
+    heightCm: wizardData.height, weightKg: wizardData.weight, targetKg: wizardData.target,
+    activity: wizardData.activity, pace: wizardData.pace,
+  };
+  const plan = computePlanData(draft);
+  return { ...plan, draft, current: draft.weightKg, target: draft.targetKg, diff: draft.weightKg - draft.targetKg };
+}
 function wizardGo(step) {
   captureStepWheels(wizardStep);
   wizardStep = step;
@@ -785,16 +1140,13 @@ function wizardGo(step) {
   if (step === 8) updatePaceUI();
   if (step === WIZARD_TOTAL) renderResult();
 }
-
 const syncActivityPick = () => $$('.wizard__option[data-activity]').forEach((o) => o.classList.toggle('is-picked', o.dataset.activity === wizardData.activity));
-
 function wizardOpen() {
   const root = $('#goal-wizard');
   if (!root) return;
   const p = state.profile;
   if (p) {
-    wizardData.goal = p.goal ?? null;
-    wizardData.sex = p.sex ?? null;
+    wizardData.goal = p.goal ?? null; wizardData.sex = p.sex ?? null;
     if (p.birth) wizardData.birth = { ...p.birth };
     if (typeof p.heightCm === 'number') wizardData.height = p.heightCm;
     if (typeof p.weightKg === 'number') wizardData.weight = p.weightKg;
@@ -810,9 +1162,7 @@ function wizardOpen() {
   if (slider) slider.value = String(wizardData.pace);
   updatePaceUI();
   wizardGo(1);
-  LOG('Анкета открыта. Вес из профиля:', wizardData.weight);
 }
-
 function wizardClose() {
   const root = $('#goal-wizard');
   if (!root) return;
@@ -820,7 +1170,6 @@ function wizardClose() {
   root.hidden = true;
   document.body.classList.remove('no-scroll');
 }
-
 function pushWeightRecord(kg) {
   const list = Array.isArray(state.weight) ? state.weight : [];
   const today = dateKey(0);
@@ -829,7 +1178,6 @@ function pushWeightRecord(kg) {
   state.weight = list.slice(0, 365);
   saveJSON(dbKey(state.uid, 'weight'), state.weight);
 }
-
 function updatePaceUI() {
   const slider = $('#pace-slider'), value = $('#pace-value'), caption = $('#pace-caption');
   if (!slider) return;
@@ -839,8 +1187,6 @@ function updatePaceUI() {
   const percent = ((v - 0.1) / 0.9) * 100;
   slider.style.background = `linear-gradient(90deg, #0a4b2c ${percent}%, #b9cdc4 ${percent}%)`;
 }
-
-/* ---------- График прогноза ---------- */
 function buildWeightSeries(current, target, pace, weeks) {
   let seed = (Math.round(current * 10) * 31 + Math.round(target * 10) * 17 + Math.round(pace * 100)) % 233280;
   const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
@@ -895,7 +1241,6 @@ function buildMonths(start, finish) {
   }
   return list;
 }
-
 function renderResult() {
   const plan = computePlan();
   lastPlan = plan;
@@ -920,21 +1265,14 @@ function renderResult() {
   if (months) { months.innerHTML = buildMonths(plan.start, finish).map((m) => `<span>${m}</span>`).join(''); months.style.width = '100%'; }
   renderWeightChart(plan);
 }
-
 function wizardFinish() {
   const plan = computePlan();
   lastPlan = plan;
   const d = plan.draft;
   const profile = {
-    goal: wizardData.goal,
-    sex: wizardData.sex,
-    birth: { ...d.birth },
-    heightCm: d.heightCm,
-    weightKg: d.weightKg,
-    targetKg: d.targetKg,
-    activity: wizardData.activity,
-    paceKgWeek: wizardData.pace,
-    updatedAt: Date.now(),
+    goal: wizardData.goal, sex: wizardData.sex, birth: { ...d.birth },
+    heightCm: d.heightCm, weightKg: d.weightKg, targetKg: d.targetKg,
+    activity: wizardData.activity, paceKgWeek: wizardData.pace, updatedAt: Date.now(),
   };
   state.profile = profile;
   saveJSON(dbKey(state.uid, 'profile'), profile);
@@ -942,9 +1280,8 @@ function wizardFinish() {
   renderProfileSummary();
   wizardClose();
   openPlanModal(plan);
-  LOG('Анкета сохранена. Вес:', profile.weightKg, '| Рост:', profile.heightCm, '| Цель:', profile.targetKg);
+  LOG('Анкета сохранена. Вес:', profile.weightKg, '| Рост:', profile.heightCm);
 }
-
 function openPlanModal(plan) {
   const modal = $('#plan-modal');
   if (!modal) return;
@@ -966,7 +1303,6 @@ function applyPlan() {
   wizardClose(); rerenderAll(); renderProfileSummary();
   LOG('Цели обновлены: ккал', state.goals.kcal, '| вода', state.goals.waterL, 'л');
 }
-
 function initWizard() {
   const root = $('#goal-wizard');
   if (!root) return;
@@ -1020,12 +1356,15 @@ function initDiaryEvents() {
   modalEl = $('#product-modal'); modalList = $('#modal-list');
   modalSearch = $('#modal-search-input'); modalSave = $('#modal-save');
   weightModal = $('#weight-modal'); weightInput = $('#weight-input');
+  scanModal = $('#scan-modal'); confirmModal = $('#confirm-modal');
 
   if (modalEl) {
     modalEl.addEventListener('click', (e) => {
       if (e.target.closest('[data-modal-close]')) { closeModal(); return; }
       const tab = e.target.closest('.modal__tab');
       if (tab) { switchTab(tab.dataset.tab); return; }
+      const photoBtn = e.target.closest('[data-photo-pick]');
+      if (photoBtn) { togglePhotoPick(photoBtn); return; }
       const itemBtn = e.target.closest('.modal__item-btn');
       if (itemBtn) toggleProduct(itemBtn);
     });
@@ -1045,23 +1384,62 @@ function initDiaryEvents() {
     $('#weight-save')?.addEventListener('click', saveWeight);
   }
 
-  $$('[data-water-add]').forEach((btn) =>
-    btn.addEventListener('click', () => { splashWater(btn); addWater(Number(btn.dataset.waterAdd)); }));
+  /* Вода */
+  $$('[data-water-add]').forEach((btn) => btn.addEventListener('click', () => {
+    splashWater(btn);
+    addWater(Number(btn.dataset.waterAdd));
+  }));
   $('#water-log')?.addEventListener('click', (e) => {
     const del = e.target.closest('[data-water-del]');
-    if (!del) return;
-    deleteWater(Number(del.dataset.waterDel));
+    if (del) deleteWater(Number(del.dataset.waterDel));
   });
+
+  /* Сканер фото */
+  $$('[data-meal-photo]').forEach((btn) => btn.addEventListener('click', () => openScan(btn.dataset.mealPhoto)));
+  if (scanModal) {
+    scanModal.addEventListener('click', (e) => {
+      if (e.target.closest('[data-scan-close]')) closeScan();
+    });
+    scanModal.addEventListener('dragover', (e) => e.preventDefault());
+    scanModal.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const f = e.dataTransfer?.files?.[0];
+      if (f) handleScanFile(f);
+    });
+    $('#scan-file').addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = '';
+      if (f) handleScanFile(f);
+    });
+    $('#scan-drop').addEventListener('click', () => $('#scan-file').click());
+    $('#scan-other-err').addEventListener('click', () => { setScanStage('pick'); $('#scan-file').click(); });
+    $('#scan-retry').addEventListener('click', runScan);
+  }
+
+  /* Галерея: открыть фото / корзина с подтверждением */
+  $('#photos-grid')?.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-photo-del]');
+    if (del) { openConfirmDelete(del.dataset.photoDel); return; }
+    const open = e.target.closest('[data-photo-open]');
+    if (open) openScanView(open.dataset.photoOpen);
+  });
+  if (confirmModal) {
+    confirmModal.addEventListener('click', (e) => {
+      if (e.target.closest('[data-confirm-close]')) closeConfirmDelete();
+    });
+    $('#confirm-ok')?.addEventListener('click', confirmDeletePhoto);
+  }
 
   $('#diary-prev')?.addEventListener('click', () => shiftDay(-1));
   $('#diary-next')?.addEventListener('click', () => shiftDay(1));
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (weightModal && !weightModal.hidden) closeWeightModal();
+    if (confirmModal && !confirmModal.hidden) closeConfirmDelete();
+    else if (weightModal && !weightModal.hidden) closeWeightModal();
     else if (modalEl && !modalEl.hidden) closeModal();
+    else if (scanModal && !scanModal.hidden) closeScan();
   });
 }
-
 window.addEventListener('pageshow', () => { applyTheme(getTheme()); switchScope(); renderProfile(); rerenderAll(); });
 window.addEventListener('storage', () => { applyTheme(getTheme()); switchScope(); renderProfile(); rerenderAll(); });
 
