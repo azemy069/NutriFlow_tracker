@@ -2489,3 +2489,215 @@ html, body { overflow-x: clip; }
   box-shadow: 0 10px 24px rgba(178, 58, 44, .30), inset 0 1px 0 rgba(255, 255, 255, .35);
 }
 .btn--danger:hover { transform: translateY(-2px); filter: brightness(1.06); }
+
+/* ==========================================================================
+   24. ШТРИХКОДЫ: кнопка у приёма пищи, сканер, карточка товара, своя база
+   ========================================================================== */
+.meal-card__actions { flex-wrap: wrap; }
+.meal-card__actions .meal-card__add { flex: 1 1 130px; }
+.meal-card__photo, .meal-card__barcode { flex: 0 0 auto; }
+
+.meal-card__barcode {
+  --bc-accent: #2f7fd6;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-pill);
+  background: rgba(47, 127, 214, .13);
+  color: var(--bc-accent);
+  font-size: var(--fs-small); font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .3);
+  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.meal-card__barcode:hover { background: rgba(47, 127, 214, .24); transform: translateY(-2px); }
+.meal-card__barcode svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+[data-theme="dark"] .meal-card__barcode { --bc-accent: #7cc0ff; background: rgba(124, 192, 255, .14); box-shadow: inset 0 0 0 1px rgba(124, 192, 255, .32); }
+[data-theme="dark"] .meal-card__barcode:hover { background: rgba(124, 192, 255, .26); }
+
+/* Окно сканера */
+.bc { --bc-accent: #2f7fd6; width: min(600px, 100%); max-height: min(88vh, 820px); overflow-y: auto; }
+[data-theme="dark"] .bc { --bc-accent: #7cc0ff; }
+.bc__status {
+  padding: .7em 1em; border-radius: var(--radius-sm);
+  font-size: var(--fs-small); font-weight: 700;
+  background: rgba(47, 127, 214, .12); color: var(--bc-accent);
+  box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .25);
+}
+.bc__status[data-kind="good"] { background: rgba(31, 189, 142, .14); color: var(--clr-teal); box-shadow: inset 0 0 0 1px rgba(31, 189, 142, .3); }
+.bc__status[data-kind="warn"] { background: rgba(238, 182, 75, .16); color: #a8721a; box-shadow: inset 0 0 0 1px rgba(238, 182, 75, .4); }
+.bc__status[data-kind="bad"] { background: rgba(226, 104, 90, .14); color: #b23a2c; box-shadow: inset 0 0 0 1px rgba(226, 104, 90, .4); }
+[data-theme="dark"] .bc__status[data-kind="warn"] { color: #f0c674; }
+[data-theme="dark"] .bc__status[data-kind="bad"] { color: #ff9d92; }
+
+.bc__start, .bc__result, .bc__new { display: grid; gap: var(--space-md); }
+.bc__label { font-size: var(--fs-caption); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--clr-muted); }
+
+/* Камера */
+.bc__camera { position: relative; border-radius: var(--radius-md); overflow: hidden; background: #05100c; aspect-ratio: 4 / 3; }
+.bc__camera video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bc__frame {
+  position: absolute; inset: 16% 10%;
+  border-radius: 14px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .55), 0 0 0 9999px rgba(4, 12, 9, .38);
+}
+.bc__frame::before, .bc__frame::after {
+  content: ""; position: absolute; width: 26px; height: 26px;
+  border: 3px solid var(--bc-accent); border-radius: 6px;
+}
+.bc__frame::before { top: -3px; left: -3px; border-right: none; border-bottom: none; }
+.bc__frame::after { bottom: -3px; right: -3px; border-left: none; border-top: none; }
+.bc__laser {
+  position: absolute; left: 10%; right: 10%; top: 50%; height: 3px;
+  border-radius: 999px; background: linear-gradient(90deg, transparent, #57e861, transparent);
+  box-shadow: 0 0 14px rgba(87, 232, 97, .8);
+  animation: bc-laser 1.9s ease-in-out infinite;
+}
+@keyframes bc-laser { 0%, 100% { transform: translateY(-42px); } 50% { transform: translateY(42px); } }
+.bc__stop { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); }
+
+.bc__tools { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.bc__tools .btn { gap: .5em; }
+.bc__tools .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.bc__manual { display: grid; gap: var(--space-2xs); }
+.bc__manual-row { display: flex; gap: var(--space-xs); }
+.bc__input {
+  flex: 1; min-width: 0;
+  padding: .8em 1em; border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-line); background: rgba(255, 255, 255, .78);
+  font-family: var(--font-display); font-size: var(--fs-body); letter-spacing: .08em;
+  color: var(--clr-ink);
+}
+.bc__input:focus { outline: none; border-color: var(--bc-accent); box-shadow: 0 0 0 3px rgba(47, 127, 214, .18); }
+[data-theme="dark"] .bc__input { background: rgba(8, 20, 16, .72); color: var(--clr-ink); }
+
+.bc__opt { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--fs-small); color: var(--clr-muted); cursor: pointer; }
+.bc__opt input { width: 18px; height: 18px; accent-color: var(--clr-emerald); cursor: pointer; }
+
+.bc__saved { display: grid; gap: var(--space-2xs); }
+.bc__chips { display: flex; flex-wrap: wrap; gap: var(--space-2xs); }
+.bc__chip { display: inline-flex; align-items: center; border-radius: var(--radius-pill); background: rgba(47, 127, 214, .12); box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .25); overflow: hidden; }
+.bc__chip button { padding: .4em .9em; font-size: var(--fs-caption); font-weight: 700; color: var(--bc-accent); }
+.bc__chip button:hover { background: rgba(47, 127, 214, .18); }
+.bc__chip-x { padding: .4em .7em !important; color: var(--clr-muted) !important; font-size: 1rem !important; line-height: 1; }
+.bc__chip-x:hover { color: var(--clr-danger) !important; background: rgba(226, 104, 90, .16) !important; }
+
+/* Поиск */
+.bc__search { display: grid; justify-items: center; gap: var(--space-sm); padding: var(--space-xl) 0; font-size: var(--fs-small); color: var(--clr-muted); }
+.bc__spinner { width: 42px; height: 42px; border-radius: 50%; border: 3px solid rgba(47, 127, 214, .2); border-top-color: var(--bc-accent); animation: bc-spin .9s linear infinite; }
+@keyframes bc-spin { to { transform: rotate(360deg); } }
+
+/* Карточка товара */
+.bc__card {
+  display: grid; gap: var(--space-2xs); justify-items: start;
+  padding: var(--space-md); border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(47, 127, 214, .12), rgba(31, 189, 142, .12));
+  box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .22);
+}
+.bc__code { font-family: var(--font-display); font-size: var(--fs-caption); letter-spacing: .12em; color: var(--clr-muted); }
+.bc__name { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--clr-teal-deep); }
+.bc__brand { font-size: var(--fs-small); color: var(--clr-muted); }
+.bc__src { padding: .25em .8em; border-radius: var(--radius-pill); background: rgba(255, 255, 255, .6); font-size: var(--fs-caption); font-weight: 800; color: var(--bc-accent); }
+[data-theme="dark"] .bc__src { background: rgba(10, 24, 19, .6); }
+.bc__per100 { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: baseline; font-size: var(--fs-small); color: var(--clr-muted); }
+.bc__per100 b { font-family: var(--font-display); color: var(--clr-teal-deep); }
+.bc__per100-note { font-size: var(--fs-caption); }
+
+.bc__portion { display: grid; gap: var(--space-2xs); justify-items: start; }
+.bc__step { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: var(--radius-pill); background: rgba(10, 75, 69, .07); }
+.bc__step button { width: 34px; height: 34px; border-radius: 50%; font-size: 1.15rem; font-weight: 800; color: var(--clr-teal-deep); background: rgba(255, 255, 255, .8); box-shadow: inset 0 0 0 1px var(--clr-line); transition: background-color var(--transition), transform var(--transition); }
+.bc__step button:hover { background: var(--clr-mint); transform: scale(1.07); }
+.bc__step input { width: 84px; padding: .4em; text-align: center; border: none; background: transparent; font-family: var(--font-display); font-size: var(--fs-h3); color: var(--clr-teal-deep); }
+.bc__step input::-webkit-outer-spin-button, .bc__step input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bc__unit { padding-right: .6em; font-size: var(--fs-small); font-weight: 800; color: var(--clr-muted); }
+[data-theme="dark"] .bc__step { background: rgba(120, 200, 170, .12); }
+[data-theme="dark"] .bc__step button { background: rgba(28, 54, 42, .85); color: var(--clr-teal-deep); }
+.bc__total { font-size: var(--fs-small); font-weight: 800; color: var(--clr-emerald); }
+
+.bc__actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); justify-content: flex-end; }
+
+/* Новый товар */
+.bc__new-head { font-size: var(--fs-small); color: var(--clr-muted); }
+.bc__form-grid { display: grid; gap: var(--space-sm); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bc__field { display: grid; gap: 2px; }
+.bc__field--wide { grid-column: 1 / -1; }
+.bc__field span { font-size: var(--fs-caption); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--clr-muted); }
+.bc__field input, .bc__field select {
+  padding: .65em .9em; border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-line); background: rgba(255, 255, 255, .78);
+  font-size: var(--fs-small); color: var(--clr-ink);
+}
+.bc__field input:focus, .bc__field select:focus { outline: none; border-color: var(--bc-accent); box-shadow: 0 0 0 3px rgba(47, 127, 214, .18); }
+[data-theme="dark"] .bc__field input, [data-theme="dark"] .bc__field select { background: rgba(8, 20, 16, .72); color: var(--clr-ink); }
+@media (max-width: 520px) { .bc__form-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Полосы прокрутки внутри окна штрихкода */
+.bc { scrollbar-width: thin; scrollbar-color: var(--bc-accent) transparent; }
+.bc::-webkit-scrollbar { width: 8px; }
+.bc::-webkit-scrollbar-track { background: rgba(47, 127, 214, .08); border-radius: 999px; }
+.bc::-webkit-scrollbar-thumb { background: linear-gradient(var(--bc-accent), var(--clr-teal)); border-radius: 999px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bc__laser, .bc__spinner { animation: none; }
+}
+
+/* ==========================================================================
+   25. ШТРИХКОД: порция в штуках, упаковка, сообщение «нет в базе»
+   ========================================================================== */
+.bc__units {
+  display: inline-flex; flex-wrap: wrap; gap: 4px;
+  padding: 4px; border-radius: var(--radius-pill);
+  background: rgba(47, 127, 214, .12);
+  box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .22);
+}
+.bc__unit-btn {
+  padding: .45em 1em;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-caption); font-weight: 800;
+  color: var(--clr-muted);
+  transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
+}
+.bc__unit-btn:hover { color: var(--bc-accent, #2f7fd6); }
+.bc__unit-btn.is-active {
+  background: linear-gradient(135deg, var(--bc-accent, #2f7fd6), var(--clr-teal));
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(47, 127, 214, .32);
+}
+[data-theme="dark"] .bc__units { background: rgba(124, 192, 255, .14); box-shadow: inset 0 0 0 1px rgba(124, 192, 255, .26); }
+[data-theme="dark"] .bc__unit-btn:hover { color: #8fd0ff; }
+
+.bc__pack {
+  font-size: var(--fs-small); font-weight: 700;
+  color: var(--clr-teal-deep);
+  padding: .55em .9em;
+  border-radius: var(--radius-sm);
+  background: rgba(31, 189, 142, .12);
+  box-shadow: inset 0 0 0 1px rgba(31, 189, 142, .24);
+}
+[data-theme="dark"] .bc__pack { background: rgba(52, 211, 153, .12); box-shadow: inset 0 0 0 1px rgba(52, 211, 153, .26); }
+
+.bc__notfound {
+  padding: .8em 1.1em;
+  border-radius: var(--radius-md);
+  background: rgba(238, 182, 75, .16);
+  box-shadow: inset 0 0 0 1px rgba(238, 182, 75, .45);
+  color: #8a5c12;
+  font-size: var(--fs-h3); font-weight: 800;
+}
+[data-theme="dark"] .bc__notfound { background: rgba(238, 182, 75, .12); color: #f0c674; }
+
+.bc__portion { gap: var(--space-xs); }
+.bc__total { line-height: 1.5; }
+
+/* Подсказка о массе штуки в окне правки порции */
+.modal__mini-hint {
+  font-size: var(--fs-caption); font-weight: 700;
+  color: var(--clr-teal);
+}
+.modal__mini-row { flex-wrap: wrap; justify-content: center; }
+.unit-switch { flex-wrap: wrap; justify-content: center; }
+
+/* Подсказка «1 шт ≈ … г» в списке продуктов */
+.modal__item-last { white-space: nowrap; }
+@media (max-width: 560px) {
+  .modal__item-btn { flex-wrap: wrap; }
+  .modal__item-last { order: 3; flex-basis: 100%; }
+}
