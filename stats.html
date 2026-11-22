@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Статистика — NutriFlow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Unbounded:wght@500;600;800&display=swap" rel="stylesheet">
+  <script src="theme-boot.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-stats">
+  <div class="bg-aura" aria-hidden="true"></div>
+
+  <aside class="sidebar glass" id="sidebar">
+    <div class="sidebar__head">
+      <a href="index.html" class="brand">
+        <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8 6 4 10 4 14a8 8 0 0 0 16 0c0-4-4-8-8-12z"/></svg>
+        NutriFlow
+      </a>
+      <button class="sidebar__close" id="sidebar-close" type="button" aria-label="Закрыть меню"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <nav class="sidebar__nav">
+      <ul class="sidebar__list">
+        <li><a href="index.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Главная</a></li>
+        <li><a href="diary.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Дневник питания</a></li>
+        <li><a href="planner.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Планировщик</a></li>
+        <li><a href="stats.html" class="sidebar__link is-active"><svg class="sidebar__icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Статистика</a></li>
+        <li><a href="profile.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль и цели</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar__foot">
+      <a href="diary.html" class="sidebar__cta">Начать дневник</a>
+      <p class="sidebar__note">Дипломный проект · 2026</p>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <header class="topbar">
+    <button class="topbar__burger" id="sidebar-open" type="button" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <span class="topbar__title">Статистика</span>
+    <span class="topbar__date" id="today-date"></span>
+  </header>
+
+  <main class="content">
+    <section class="st">
+
+      <header class="st__head glass">
+        <div class="st__head-text">
+          <p class="overline">Статистика</p>
+          <h1 class="st__title">Ваш прогресс</h1>
+          <p class="st__sub" id="st-range">Период: последние 30 дней</p>
+        </div>
+
+        <div class="st-toolbar">
+          <div class="st-seg" id="st-period" role="group" aria-label="Период статистики">
+            <button class="st-seg__btn" type="button" data-period="7">7 дней</button>
+            <button class="st-seg__btn" type="button" data-period="14">14 дней</button>
+            <button class="st-seg__btn is-active" type="button" data-period="30">30 дней</button>
+            <button class="st-seg__btn" type="button" data-period="90">90 дней</button>
+            <button class="st-seg__btn" type="button" data-period="all">Всё время</button>
+          </div>
+          <div class="st-switches">
+            <label class="st-toggle"><input type="checkbox" id="st-goals" checked><span class="st-toggle__track" aria-hidden="true"><span class="st-toggle__knob"></span></span><span>Линии целей</span></label>
+            <label class="st-toggle"><input type="checkbox" id="st-dots" checked><span class="st-toggle__track" aria-hidden="true"><span class="st-toggle__knob"></span></span><span>Точки</span></label>
+            <label class="st-toggle"><input type="checkbox" id="st-smooth"><span class="st-toggle__track" aria-hidden="true"><span class="st-toggle__knob"></span></span><span>Плавная линия</span></label>
+            <button class="btn-soft st-export" id="st-export" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>
+              Экспорт CSV
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="st-tiles" id="st-tiles"></div>
+
+      <!-- ===== ВЕС ===== -->
+      <section class="st-card glass" aria-label="Статистика веса">
+        <div class="st-card__head">
+          <div>
+            <h2 class="st-card__title">Вес</h2>
+            <p class="st-card__sub" id="st-weight-sub">Динамика по вашим записям</p>
+          </div>
+          <button class="btn btn--primary st-addweight" id="st-add-weight" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Добавить вес
+          </button>
+        </div>
+
+        <div class="st-chart" id="chart-weight"></div>
+        <div class="st-facts" id="weight-facts"></div>
+
+        <div class="st-records">
+          <div class="st-records__head">
+            <span class="st-records__title">Записи веса</span>
+            <button class="st-sortbtn" id="st-sort" type="button" aria-label="Порядок сортировки">Сначала новые</button>
+          </div>
+          <ul class="st-records__list" id="weight-records"></ul>
+        </div>
+      </section>
+
+      <!-- ===== КАЛОРИИ ===== -->
+      <section class="st-card glass" aria-label="Статистика калорий">
+        <div class="st-card__head">
+          <div>
+            <h2 class="st-card__title">Калории по дням</h2>
+            <p class="st-card__sub">Нажмите на точку графика, чтобы открыть состав дня</p>
+          </div>
+          <span class="st-goalchip" id="st-kcal-goal">Цель: 1800 ккал</span>
+        </div>
+        <div class="st-chart" id="chart-kcal"></div>
+        <div class="st-extremes" id="kcal-extremes"></div>
+      </section>
+
+      <!-- ===== БЖУ ===== -->
+      <section class="st-card glass" aria-label="Статистика белков, жиров и углеводов">
+        <div class="st-card__head">
+          <div>
+            <h2 class="st-card__title">Белки, жиры и углеводы</h2>
+            <p class="st-card__sub">Средние значения за период и дневная норма</p>
+          </div>
+        </div>
+        <div class="st-macros">
+          <div class="st-macro">
+            <div class="st-chart" id="chart-p"></div>
+            <div class="st-facts st-facts--mini" id="facts-p"></div>
+          </div>
+          <div class="st-macro">
+            <div class="st-chart" id="chart-f"></div>
+            <div class="st-facts st-facts--mini" id="facts-f"></div>
+          </div>
+          <div class="st-macro">
+            <div class="st-chart" id="chart-c"></div>
+            <div class="st-facts st-facts--mini" id="facts-c"></div>
+          </div>
+        </div>
+      </section>
+
+      <p class="st-disclaimer">Данные берутся из вашего дневника, планировщика и записей веса этого аккаунта. Показатели носят справочный характер и не заменяют консультацию специалиста.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>© 2026 NutriFlow · дипломный проект</span>
+    <span>Сделано с заботой о вашем рационе</span>
+  </footer>
+
+  <!-- ===== ДОБАВИТЬ / ИЗМЕНИТЬ ВЕС ===== -->
+  <div class="modal" id="weight-modal" hidden role="dialog" aria-modal="true" aria-label="Запись веса">
+    <div class="modal__backdrop" data-wm-close></div>
+    <div class="modal__dialog st-wm glass">
+      <div class="modal__head">
+        <h3 class="modal__mini-title" id="wm-title">Добавить вес</h3>
+        <button class="btn-soft" type="button" data-wm-close>Закрыть</button>
+      </div>
+
+      <div class="st-wm__block">
+        <span class="st-wm__label">Дата записи</span>
+        <div class="st-seg st-seg--wide" id="wm-datemode" role="group" aria-label="Выбор даты">
+          <button class="st-seg__btn is-active" type="button" data-datemode="today">Сегодня</button>
+          <button class="st-seg__btn" type="button" data-datemode="pick">Выбрать дату</button>
+        </div>
+        <div class="st-wm__wheels" id="wm-datewheels" hidden>
+          <div class="wheel-row">
+            <span class="wheel-row__pill" aria-hidden="true"></span>
+            <div class="wheel" data-wm-wheel="day"></div>
+            <div class="wheel" data-wm-wheel="month"></div>
+            <div class="wheel" data-wm-wheel="year"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="st-wm__block">
+        <span class="st-wm__label">Вес</span>
+        <div class="st-wm__wheels">
+          <div class="wheel-row">
+            <span class="wheel-row__pill" aria-hidden="true"></span>
+            <div class="wheel" data-wm-wheel="int"></div>
+            <span class="wheel-row__static">,</span>
+            <div class="wheel" data-wm-wheel="dec"></div>
+            <span class="wheel-row__static">кг</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="st-wm__preview" id="wm-preview">—</p>
+      <p class="st-wm__warn" id="wm-warn" hidden></p>
+
+      <div class="st-wm__actions">
+        <button class="btn-soft st-wm__del" id="wm-delete" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+          Удалить вес
+        </button>
+        <button class="btn-soft" type="button" data-wm-close>Отмена</button>
+        <button class="btn btn--primary" id="wm-save" type="button">Сохранить вес</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== СОСТАВ ДНЯ ===== -->
+  <div class="st-drawer-wrap" id="day-drawer" hidden>
+    <div class="st-drawer__scrim" data-drawer-close></div>
+    <aside class="st-drawer glass" role="dialog" aria-modal="true" aria-label="Состав дня">
+      <header class="st-drawer__head">
+        <div>
+          <p class="overline" id="drawer-overline">День</p>
+          <h3 class="st-drawer__title" id="drawer-title">—</h3>
+        </div>
+        <button class="st-drawer__close" type="button" data-drawer-close aria-label="Закрыть">
+          <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <div class="st-drawer__totals" id="drawer-totals"></div>
+      <div class="st-drawer__body" id="drawer-body"></div>
+      <a class="btn btn--primary st-drawer__link" href="diary.html">Открыть дневник питания</a>
+    </aside>
+  </div>
+
+  <script src="data/products.js"></script>
+  <script src="data/barcodes.js"></script>
+  <script src="data/script.js?v=26"></script>
+  <script src="data/stats.js?v=4"></script>
+  <script src="data/reveal.js"></script>
+</body>
+</html>
