@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Планировщик питания — NutriFlow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Unbounded:wght@500;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-planner">
+  <div class="bg-aura" aria-hidden="true"></div>
+
+  <aside class="sidebar glass" id="sidebar">
+    <div class="sidebar__head">
+      <a href="index.html" class="brand">
+        <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8 6 4 10 4 14a8 8 0 0 0 16 0c0-4-4-8-8-12z"/></svg>
+        NutriFlow
+      </a>
+      <button class="sidebar__close" id="sidebar-close" type="button" aria-label="Закрыть меню"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <nav class="sidebar__nav">
+      <ul class="sidebar__list">
+        <li><a href="index.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Главная</a></li>
+        <li><a href="diary.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Дневник питания</a></li>
+        <li><a href="planner.html" class="sidebar__link is-active"><svg class="sidebar__icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Планировщик</a></li>
+        <li><a href="stats.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Статистика</a></li>
+        <li><a href="profile.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль и цели</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar__foot">
+      <a href="diary.html" class="sidebar__cta">Начать дневник</a>
+      <p class="sidebar__note">Дипломный проект · 2026</p>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <header class="topbar">
+    <button class="topbar__burger" id="sidebar-open" type="button" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <span class="topbar__title">Планировщик</span>
+    <span class="topbar__date" id="today-date"></span>
+  </header>
+
+  <main class="content">
+    <section class="pl">
+
+      <header class="pl__head glass">
+        <div class="pl__head-text">
+          <p class="overline">Планировщик</p>
+          <h1 class="pl__title">План питания</h1>
+          <p class="pl__sub" id="pl-week-avg">Средняя калорийность недели: 0 ккал/день</p>
+        </div>
+        <div class="pl__head-tools">
+          <div class="pl__nav">
+            <button class="pl__nav-btn" id="pl-prev" type="button" aria-label="Предыдущая неделя"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <span class="pl__week" id="pl-week-label">—</span>
+            <button class="pl__nav-btn" id="pl-next" type="button" aria-label="Следующая неделя"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+          <button class="btn-soft" id="pl-today" type="button">Текущая неделя</button>
+          <button class="pl__gear" id="pl-settings-open" type="button" aria-label="Настройки планировщика" title="Настройки">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11.5 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 19.4 11a2 2 0 1 1 0 4z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="pl__layout">
+        <div class="pl__main">
+          <div class="pl__strip" id="pl-strip"></div>
+          <div class="pl__days" id="pl-days"></div>
+        </div>
+
+        <aside class="pl__aside">
+          <section class="ai glass" id="ai-panel" aria-label="ИИ-помощник по питанию">
+            <header class="ai__head">
+              <div class="ai__who">
+                <span class="ai__avatar" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.6"/></svg>
+                </span>
+                <div>
+                  <h2 class="ai__title">ИИ-помощник</h2>
+                  <p class="ai__model" id="ai-active">Gemini 3.7 Flash</p>
+                </div>
+              </div>
+              <button class="ai__icon-btn" id="ai-clear" type="button" aria-label="Очистить чат" title="Очистить чат">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+            </header>
+
+            <div class="ai__modelbar">
+              <label class="ai__modellabel" for="ai-model">Модель</label>
+              <div class="ai__selectwrap">
+                <select class="ai__select" id="ai-model" aria-label="Выбор модели ИИ"></select>
+                <svg class="ai__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+              <span class="ai__vision" id="ai-vision">видит фото</span>
+            </div>
+            <p class="ai__route" id="ai-route" hidden></p>
+
+            <div class="ai__log" id="ai-log"></div>
+            <p class="ai__status" id="ai-status" hidden></p>
+
+            <div class="ai__attach" id="ai-attach" hidden>
+              <img id="ai-attach-img" alt="Прикреплённое фото">
+              <div class="ai__attach-info">
+                <strong>Фото</strong>
+                <span id="ai-attach-note">Готово к отправке</span>
+              </div>
+              <button class="ai__attach-del" id="ai-attach-del" type="button" aria-label="Убрать фото">×</button>
+            </div>
+
+            <form class="ai__composer" id="ai-form">
+              <input type="file" id="ai-file" accept="image/*" hidden>
+              <button class="ai__icon-btn" id="ai-photo" type="button" aria-label="Прикрепить фото" title="Прикрепить фото">
+                <svg viewBox="0 0 24 24"><path d="M21.4 11.05l-8.5 8.5a5 5 0 0 1-7.07-7.07l8.49-8.49a3.33 3.33 0 0 1 4.71 4.71l-8.49 8.49a1.67 1.67 0 0 1-2.36-2.36l7.78-7.78"/></svg>
+              </button>
+              <textarea class="ai__input" id="ai-input" rows="1" placeholder="Напиши сообщение…" aria-label="Сообщение ИИ"></textarea>
+              <button class="ai__send" id="ai-send" type="submit" aria-label="Отправить" title="Отправить">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12L4 4l5 8-5 8z"/></svg>
+              </button>
+            </form>
+            <p class="ai__foot">ИИ читает последние 50 сообщений и меняет планировщик или дневник только после вашего «да».</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>© 2026 NutriFlow · дипломный проект</span>
+    <span>Сделано с заботой о вашем рационе</span>
+  </footer>
+
+  <!-- ===== ВЫБОР ПРОДУКТОВ ===== -->
+  <div class="modal" id="pl-product-modal" hidden role="dialog" aria-modal="true" aria-label="Добавить продукты в план">
+    <div class="modal__backdrop" data-pl-pick-close></div>
+    <div class="modal__dialog glass">
+      <div class="modal__head">
+        <h3 class="modal__mini-title">Добавить в план · <span id="pl-pick-target">—</span></h3>
+        <button class="btn-soft" type="button" data-pl-pick-close>Закрыть</button>
+      </div>
+      <div class="modal__tabs" role="tablist">
+        <button class="modal__tab is-active" type="button" data-pl-tab="search" role="tab" aria-selected="true">Поиск</button>
+        <button class="modal__tab" type="button" data-pl-tab="recent" role="tab" aria-selected="false">Недавние</button>
+        <button class="modal__tab" type="button" data-pl-tab="photos" role="tab" aria-selected="false">Фото</button>
+      </div>
+      <div class="modal__search" id="pl-search-wrap">
+        <input id="pl-search-input" type="search" placeholder="Найти продукт…" autocomplete="off">
+        <button class="modal__clear" id="pl-search-clear" type="button" aria-label="Очистить поиск">×</button>
+      </div>
+      <ul class="modal__list" id="pl-pick-list"></ul>
+      <button class="btn btn--primary modal__save" id="pl-pick-save" type="button" disabled>Добавить</button>
+    </div>
+  </div>
+
+  <!-- ===== ПОРЦИЯ ===== -->
+  <div class="modal" id="pl-weight-modal" hidden role="dialog" aria-modal="true" aria-label="Изменить порцию">
+    <div class="modal__backdrop" data-pl-weight-close></div>
+    <div class="modal__dialog modal__dialog--mini glass">
+      <h3 class="modal__mini-title" id="pl-weight-title">Изменить порцию</h3>
+      <p class="modal__mini-name" id="pl-weight-name">—</p>
+      <p class="modal__mini-hint" id="pl-weight-hint" hidden></p>
+      <div class="modal__mini-row">
+        <input class="modal__mini-input" id="pl-weight-input" type="number" min="1" max="5000" step="1" value="100">
+        <div class="unit-switch" id="pl-unit-toggle" role="group" aria-label="Единицы измерения порции">
+          <button class="unit-switch__btn" type="button" data-unit="pc" aria-pressed="false">шт</button>
+          <span class="unit-switch__sep" data-sep="pc" aria-hidden="true">/</span>
+          <button class="unit-switch__btn is-active" type="button" data-unit="g" aria-pressed="true">г</button>
+          <span class="unit-switch__sep" data-sep="ml" aria-hidden="true">/</span>
+          <button class="unit-switch__btn" type="button" data-unit="ml" aria-pressed="false">мл</button>
+        </div>
+      </div>
+      <p class="modal__mini-kcal" id="pl-weight-kcal">0 ккал</p>
+      <div class="modal__mini-actions">
+        <button class="btn-soft" type="button" data-pl-weight-close>Отмена</button>
+        <button class="btn btn--primary" id="pl-weight-save" type="button">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ФОТО-СКАНЕР ===== -->
+  <div class="modal" id="pl-scan-modal" hidden role="dialog" aria-modal="true" aria-label="Сканер блюда по фото">
+    <div class="modal__backdrop" data-pl-scan-close></div>
+    <div class="modal__dialog scan glass">
+      <div class="modal__head">
+        <h3 class="modal__mini-title">Сканер блюда · <span id="pl-scan-target">—</span></h3>
+        <button class="btn-soft" type="button" data-pl-scan-close>Закрыть</button>
+      </div>
+      <input type="file" id="pl-scan-file" accept="image/*" hidden>
+
+      <div class="scan__pick" id="pl-scan-pick">
+        <button class="scan__drop" id="pl-scan-drop" type="button">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M8 20a4 4 0 0 1 4-4h6l3-5h22l3 5h6a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4z"/>
+            <circle cx="32" cy="33" r="11"/><circle cx="32" cy="33" r="4"/>
+          </svg>
+          <strong>Выбрать новое фото</strong>
+          <span>Откроется проводник · или перетащите файл в это окно</span>
+        </button>
+        <div class="scan__gallery" id="pl-scan-gallery-wrap" hidden>
+          <div class="scan__gallery-head">
+            <span class="bc__label">Мои фото — нажмите, чтобы добавить</span>
+            <span class="scan__gallery-count" id="pl-scan-gallery-count">0</span>
+          </div>
+          <ul class="scan__gallery-grid" id="pl-scan-gallery"></ul>
+        </div>
+      </div>
+
+      <div class="scan__busy" id="pl-scan-busy" hidden>
+        <figure class="scan__frame"><img id="pl-scan-img" alt="Фото блюда"><span class="scan__line" aria-hidden="true"></span></figure>
+        <p class="scan__status" id="pl-scan-status">Сканирую фото…</p>
+      </div>
+
+      <div class="scan__result" id="pl-scan-result" hidden>
+        <figure class="scan__frame scan__frame--small"><img id="pl-scan-img2" alt="Фото блюда"></figure>
+        <p class="scan__dish" id="pl-scan-dish">—</p>
+        <ul class="scan__items" id="pl-scan-items"></ul>
+        <div class="scan__total">
+          <span>Итого</span><strong id="pl-scan-total">0 ккал</strong>
+          <span class="scan__macros" id="pl-scan-macros">Б 0 · Ж 0 · У 0</span>
+        </div>
+        <p class="scan__note" id="pl-scan-note"></p>
+        <div class="scan__actions">
+          <button class="btn-soft" type="button" id="pl-scan-again">Другое фото</button>
+          <button class="btn btn--primary" type="button" id="pl-scan-add">Добавить в план</button>
+        </div>
+      </div>
+
+      <div class="scan__error" id="pl-scan-error" hidden>
+        <p class="scan__error-text" id="pl-scan-error-text">—</p>
+        <div class="scan__actions">
+          <button class="btn-soft" type="button" id="pl-scan-other">Другое фото</button>
+          <button class="btn btn--primary" type="button" id="pl-scan-retry">Повторить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ШТРИХКОД ===== -->
+  <div class="modal" id="pl-bc-modal" hidden role="dialog" aria-modal="true" aria-label="Сканер штрихкода">
+    <div class="modal__backdrop" data-pl-bc-close></div>
+    <div class="modal__dialog bc glass">
+      <div class="modal__head">
+        <h3 class="modal__mini-title">Штрихкод · <span id="pl-bc-target">—</span></h3>
+        <button class="btn-soft" type="button" data-pl-bc-close>Закрыть</button>
+      </div>
+
+      <p class="bc__status" id="pl-bc-status" data-kind="info">Наведите камеру на штрихкод или введите цифры вручную.</p>
+
+      <div class="bc__start" id="pl-bc-start">
+        <div class="bc__camera" id="pl-bc-camera" hidden>
+          <video id="pl-bc-video" playsinline muted></video>
+          <span class="bc__frame" aria-hidden="true"></span>
+          <span class="bc__laser" aria-hidden="true"></span>
+          <button class="btn-soft bc__stop" type="button" id="pl-bc-stop">Выключить камеру</button>
+        </div>
+        <div class="bc__tools">
+          <button class="btn btn--primary" type="button" id="pl-bc-cam-on">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5v14M6.5 5v14M10 5v10M13.5 5v14M17 5v10M20.5 5v14"/></svg>
+            Сканировать камерой
+          </button>
+          <button class="btn-soft" type="button" id="pl-bc-photo">Фото штрихкода</button>
+          <input type="file" id="pl-bc-file" accept="image/*" hidden>
+        </div>
+        <form class="bc__manual" id="pl-bc-form">
+          <label class="bc__label" for="pl-bc-input">Цифры под штрихкодом</label>
+          <div class="bc__manual-row">
+            <input class="bc__input" id="pl-bc-input" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="4607176440249">
+            <button class="btn btn--primary" type="submit">Найти</button>
+          </div>
+        </form>
+        <div class="bc__saved" id="pl-bc-saved-wrap" hidden>
+          <span class="bc__label">Мои товары</span>
+          <ul class="bc__chips" id="pl-bc-saved"></ul>
+        </div>
+      </div>
+
+      <div class="bc__search" id="pl-bc-search" hidden>
+        <span class="bc__spinner" aria-hidden="true"></span>
+        <p>Ищу товар <strong id="pl-bc-code-search">—</strong>…</p>
+      </div>
+
+      <div class="bc__result" id="pl-bc-result" hidden>
+        <div class="bc__card">
+          <span class="bc__code" id="pl-bc-code">—</span>
+          <h4 class="bc__name" id="pl-bc-name">—</h4>
+          <p class="bc__brand" id="pl-bc-brand"></p>
+          <div class="bc__per100">
+            <span><b id="pl-bc-kcal100">0</b> ккал</span>
+            <span>Б <b id="pl-bc-p100">0</b></span>
+            <span>Ж <b id="pl-bc-f100">0</b></span>
+            <span>У <b id="pl-bc-c100">0</b></span>
+            <span class="bc__per100-note">на 100 г</span>
+          </div>
+        </div>
+        <p class="bc__pack" id="pl-bc-pack" hidden></p>
+        <div class="bc__portion">
+          <span class="bc__label">Порция</span>
+          <div class="bc__units" id="pl-bc-units" role="group" aria-label="Единицы порции" hidden>
+            <button class="bc__unit-btn" type="button" data-bc-unit="pc" aria-pressed="false">штуки</button>
+            <button class="bc__unit-btn" type="button" data-bc-unit="g" aria-pressed="false">граммы</button>
+            <button class="bc__unit-btn" type="button" data-bc-unit="ml" aria-pressed="false">миллилитры</button>
+          </div>
+          <div class="bc__step">
+            <button type="button" id="pl-bc-minus" aria-label="Уменьшить порцию">−</button>
+            <input id="pl-bc-amount" type="number" min="1" max="5000" step="1" value="1">
+            <button type="button" id="pl-bc-plus" aria-label="Увеличить порцию">+</button>
+            <span class="bc__unit" id="pl-bc-unit">г</span>
+          </div>
+          <p class="bc__total" id="pl-bc-total">0 ккал · Б 0 · Ж 0 · У 0</p>
+        </div>
+        <div class="bc__actions">
+          <button class="btn-soft" type="button" id="pl-bc-again">Другой код</button>
+          <button class="btn btn--primary" type="button" id="pl-bc-add">Добавить в план</button>
+        </div>
+      </div>
+
+      <div class="bc__new" id="pl-bc-new" hidden>
+        <p class="bc__notfound">Данный штрихкод не состоит в базе данных</p>
+        <p class="bc__new-head">Код <strong id="pl-bc-code-new">—</strong>. Заполните карточку товара — он сохранится в базу, и в следующий раз найдётся сразу.</p>
+        <div class="bc-find">
+          <span class="bc__label">Найдите товар по названию — КБЖУ подставятся сами</span>
+          <form class="bc-find__row" id="pl-bc-find-form">
+            <input class="bc__input" id="pl-bc-find-input" type="search" autocomplete="off" placeholder="Например, Простоквашино творог 5%">
+            <button class="btn btn--primary" type="submit">Искать</button>
+          </form>
+          <p class="bc-find__hint" id="pl-bc-find-hint">Сначала ищем среди товаров, продающихся в России, затем по всему миру.</p>
+          <ul class="bc-find__list" id="pl-bc-find-list"></ul>
+        </div>
+        <div class="bc__form-grid">
+          <label class="bc__field bc__field--wide"><span>Полное название</span><input id="pl-bc-new-name" type="text" maxlength="140"></label>
+          <label class="bc__field"><span>Бренд</span><input id="pl-bc-new-brand" type="text" maxlength="40"></label>
+          <label class="bc__field"><span>Единицы</span><select id="pl-bc-new-unit"><option value="g">граммы</option><option value="ml">миллилитры</option></select></label>
+          <label class="bc__field"><span>Ккал / 100</span><input id="pl-bc-new-kcal" type="number" min="0" max="900" step="1" value="0"></label>
+          <label class="bc__field"><span>Белки / 100</span><input id="pl-bc-new-p" type="number" min="0" max="100" step="0.1" value="0"></label>
+          <label class="bc__field"><span>Жиры / 100</span><input id="pl-bc-new-f" type="number" min="0" max="100" step="0.1" value="0"></label>
+          <label class="bc__field"><span>Углеводы / 100</span><input id="pl-bc-new-c" type="number" min="0" max="100" step="0.1" value="0"></label>
+          <label class="bc__field"><span>Упаковка, г/мл</span><input id="pl-bc-new-pack" type="number" min="0" max="20000" step="1" value="0"></label>
+          <label class="bc__field"><span>Вес 1 шт, г</span><input id="pl-bc-new-piece" type="number" min="0" max="2000" step="0.5" value="0"></label>
+          <label class="bc__field bc__field--wide"><span>Порция для добавления</span><input id="pl-bc-new-amount" type="number" min="1" max="5000" step="1" value="100"></label>
+        </div>
+        <div class="bc__actions">
+          <button class="btn-soft" type="button" id="pl-bc-new-cancel">Назад</button>
+          <button class="btn btn--primary" type="button" id="pl-bc-new-add">Сохранить и добавить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== НАСТРОЙКИ ===== -->
+  <div class="modal" id="pl-settings-modal" hidden role="dialog" aria-modal="true" aria-label="Настройки планировщика">
+    <div class="modal__backdrop" data-pl-set-close></div>
+    <div class="modal__dialog modal__dialog--mini glass">
+      <h3 class="modal__mini-title">Настройки планировщика</h3>
+      <label class="pl-set__field">
+        <span class="bc__label">Первый день недели</span>
+        <select class="pl-set__select" id="pl-week-start">
+          <option value="1">Понедельник</option>
+          <option value="6">Суббота</option>
+          <option value="0">Воскресенье</option>
+        </select>
+      </label>
+      <p class="pl-set__note">Настройка сохраняется в вашем аккаунте и действует только в планировщике.</p>
+      <div class="modal__mini-actions">
+        <button class="btn-soft" type="button" data-pl-set-close>Закрыть</button>
+        <button class="btn btn--primary" id="pl-set-save" type="button">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ПОДТВЕРЖДЕНИЕ ===== -->
+  <div class="modal" id="pl-confirm-modal" hidden role="dialog" aria-modal="true" aria-label="Подтверждение">
+    <div class="modal__backdrop" data-pl-confirm-close></div>
+    <div class="modal__dialog modal__dialog--mini glass">
+      <h3 class="modal__mini-title" id="pl-confirm-title">—</h3>
+      <p class="confirm__text" id="pl-confirm-text">—</p>
+      <div class="modal__mini-actions">
+        <button class="btn-soft" type="button" data-pl-confirm-close>Отмена</button>
+        <button class="btn btn--danger" id="pl-confirm-ok" type="button">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data/products.js"></script>
+  <script src="data/barcodes.js"></script>
+  <script src="data/barcode-sources.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <script src="data/script.js?v=25"></script>
+  <script src="data/planner.js?v=5"></script>
+</body>
+</html>

@@ -238,7 +238,7 @@
     <span>Сделано с заботой о вашем рационе</span>
   </footer>
 
-  <!-- ===== ОКНО ВЫБОРА: ПОИСК / НЕДАВНИЕ / ФОТО ===== -->
+  <!-- ===== ОКНО ВЫБОРА: ПОИСК / НЕДАВНИЕ / ФОТО / ПЛАНИРОВЩИК ===== -->
   <div class="modal" id="product-modal" hidden role="dialog" aria-modal="true" aria-label="Добавить продукты">
     <div class="modal__backdrop" data-modal-close></div>
     <div class="modal__dialog glass">
@@ -250,17 +250,32 @@
         <button class="modal__tab is-active" type="button" data-tab="search" role="tab" aria-selected="true">Поиск</button>
         <button class="modal__tab" type="button" data-tab="recent" role="tab" aria-selected="false">Недавние</button>
         <button class="modal__tab" type="button" data-tab="photos" role="tab" aria-selected="false">Фото</button>
+        <button class="modal__tab" type="button" data-tab="planner" role="tab" aria-selected="false">Планировщик</button>
       </div>
+
       <div class="modal__search" id="modal-search-wrap">
         <input id="modal-search-input" type="search" placeholder="Найти продукт…" autocomplete="off">
         <button class="modal__clear" id="modal-search-clear" type="button" aria-label="Очистить поиск">×</button>
       </div>
+
+      <div class="modal__planbar" id="modal-plan-bar" hidden>
+        <div class="modal__planbar-nav">
+          <button class="modal__planbar-btn" id="plan-prev" type="button" aria-label="Предыдущая неделя"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <span class="modal__planbar-week" id="plan-week-label">—</span>
+          <button class="modal__planbar-btn" id="plan-next" type="button" aria-label="Следующая неделя"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <button class="btn btn--primary modal__planbar-all" id="plan-add-week" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Добавить всю неделю
+        </button>
+      </div>
+
       <ul class="modal__list" id="modal-list"></ul>
       <button class="btn btn--primary modal__save" id="modal-save" type="button" disabled>Сохранить</button>
     </div>
   </div>
 
-  <!-- ===== ОКНО ПОРЦИИ: ШТУКИ / ГРАММЫ / МИЛЛИЛИТРЫ ===== -->
+  <!-- ===== ОКНО ПОРЦИИ ===== -->
   <div class="modal" id="weight-modal" hidden role="dialog" aria-modal="true" aria-label="Изменить порцию">
     <div class="modal__backdrop" data-weight-close></div>
     <div class="modal__dialog modal__dialog--mini glass">
@@ -293,15 +308,13 @@
         <h3 class="modal__mini-title">Сканер блюда · <span id="scan-meal">Завтрак</span></h3>
         <button class="btn-soft" type="button" data-scan-close>Закрыть</button>
       </div>
-
       <input type="file" id="scan-file" accept="image/*" hidden>
 
       <div class="scan__pick" id="scan-pick">
         <button class="scan__drop" id="scan-drop" type="button">
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <path d="M8 20a4 4 0 0 1 4-4h6l3-5h22l3 5h6a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4z"/>
-            <circle cx="32" cy="33" r="11"/>
-            <circle cx="32" cy="33" r="4"/>
+            <circle cx="32" cy="33" r="11"/><circle cx="32" cy="33" r="4"/>
           </svg>
           <strong>Выбрать фото блюда</strong>
           <span>Откроется проводник · или перетащите файл в это окно</span>
@@ -309,22 +322,16 @@
       </div>
 
       <div class="scan__busy" id="scan-busy" hidden>
-        <figure class="scan__frame">
-          <img id="scan-img" alt="Загруженное фото блюда">
-          <span class="scan__line" aria-hidden="true"></span>
-        </figure>
+        <figure class="scan__frame"><img id="scan-img" alt="Фото блюда"><span class="scan__line" aria-hidden="true"></span></figure>
         <p class="scan__status" id="scan-status">Сканирую фото…</p>
       </div>
 
       <div class="scan__result" id="scan-result" hidden>
-        <figure class="scan__frame scan__frame--small">
-          <img id="scan-img-result" alt="Фото блюда">
-        </figure>
+        <figure class="scan__frame scan__frame--small"><img id="scan-img-result" alt="Фото блюда"></figure>
         <p class="scan__dish" id="scan-dish">—</p>
         <ul class="scan__items" id="scan-items"></ul>
         <div class="scan__total">
-          <span>Итого</span>
-          <strong id="scan-total-kcal">0 ккал</strong>
+          <span>Итого</span><strong id="scan-total-kcal">0 ккал</strong>
           <span class="scan__macros" id="scan-total-macros">Б 0 · Ж 0 · У 0</span>
         </div>
         <p class="scan__note" id="scan-note"></p>
@@ -341,7 +348,7 @@
     </div>
   </div>
 
-  <!-- ===== СКАНЕР ШТРИХКОДА ===== -->
+  <!-- ===== ШТРИХКОД ===== -->
   <div class="modal" id="barcode-modal" hidden role="dialog" aria-modal="true" aria-label="Сканер штрихкода">
     <div class="modal__backdrop" data-bc-close></div>
     <div class="modal__dialog bc glass">
@@ -353,7 +360,6 @@
       <p class="bc__status" id="bc-status" data-kind="info">Наведите камеру на штрихкод или введите цифры вручную.</p>
       <div class="bc-trace" id="bc-trace" hidden></div>
 
-      <!-- Старт -->
       <div class="bc__start" id="bc-start">
         <div class="bc__camera" id="bc-camera" hidden>
           <video id="bc-video" playsinline muted></video>
@@ -372,23 +378,21 @@
         <form class="bc__manual" id="bc-form">
           <label class="bc__label" for="bc-input">Цифры под штрихкодом</label>
           <div class="bc__manual-row">
-            <input class="bc__input" id="bc-input" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="7622202048265">
+            <input class="bc__input" id="bc-input" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="4607176440249">
             <button class="btn btn--primary" type="submit">Найти</button>
           </div>
         </form>
         <div class="bc__saved" id="bc-saved-wrap" hidden>
-          <span class="bc__label">Мои товары</span>
+          <span class="bc__label">Недавние коды</span>
           <ul class="bc__chips" id="bc-saved"></ul>
         </div>
       </div>
 
-      <!-- Поиск -->
       <div class="bc__search" id="bc-search" hidden>
         <span class="bc__spinner" aria-hidden="true"></span>
         <p>Ищу товар <strong id="bc-code-search">—</strong>…</p>
       </div>
 
-      <!-- Результат -->
       <div class="bc__result" id="bc-result" hidden>
         <div class="bc__card">
           <span class="bc__code" id="bc-code">—</span>
@@ -403,9 +407,7 @@
             <span class="bc__per100-note">на 100 г</span>
           </div>
         </div>
-
         <p class="bc__pack" id="bc-pack" hidden></p>
-
         <details class="bc-fix" id="bc-fix">
           <summary>Проверить и исправить данные</summary>
           <div class="bc__form-grid">
@@ -416,11 +418,10 @@
             <label class="bc__field"><span>Белки / 100</span><input id="bc-fix-p" type="number" min="0" max="100" step="0.1"></label>
             <label class="bc__field"><span>Жиры / 100</span><input id="bc-fix-f" type="number" min="0" max="100" step="0.1"></label>
             <label class="bc__field"><span>Углеводы / 100</span><input id="bc-fix-c" type="number" min="0" max="100" step="0.1"></label>
-            <label class="bc__field bc__field--wide"><span>Вес 1 штуки, г (если товар счётный)</span><input id="bc-fix-piece" type="number" min="0" max="2000" step="0.5"></label>
+            <label class="bc__field bc__field--wide"><span>Вес 1 штуки, г</span><input id="bc-fix-piece" type="number" min="0" max="2000" step="0.5"></label>
           </div>
-          <p class="bc-fix__hint">Исправления сохранятся под этим штрихкодом в вашу базу — в следующий раз товар найдётся сразу и с правильными цифрами.</p>
+          <p class="bc-fix__hint">Исправления сохранятся под этим штрихкодом в вашу базу.</p>
         </details>
-
         <div class="bc__portion">
           <span class="bc__label">Порция</span>
           <div class="bc__units" id="bc-units" role="group" aria-label="Единицы порции" hidden>
@@ -436,35 +437,15 @@
           </div>
           <p class="bc__total" id="bc-total">0 ккал · Б 0 · Ж 0 · У 0</p>
         </div>
-
         <div class="bc__actions">
-          <button class="btn-soft" type="button" id="bc-wrong">Это не тот товар</button>
           <button class="btn-soft" type="button" id="bc-again">Другой код</button>
           <button class="btn btn--primary" type="button" id="bc-add">Добавить в рацион</button>
         </div>
       </div>
 
-      <!-- Уточнение товара -->
-      <div class="bc__choice" id="bc-choice" hidden>
-        <p class="bc__notfound" id="bc-choice-title">Уточните товар</p>
-        <p class="bc__new-head">Код <strong id="bc-choice-code">—</strong>. Автоматически подставлять КБЖУ похожего товара нельзя — выберите точную позицию, и данные запомнятся под этим штрихкодом.</p>
-        <form class="bc-find__row" id="bc-choice-form">
-          <input class="bc__input" id="bc-choice-input" type="search" autocomplete="off" placeholder="Например, Alpen Gold Max Fun 140 г">
-          <button class="btn btn--primary" type="submit">Искать</button>
-        </form>
-        <p class="bc-find__hint" id="bc-choice-hint">Сначала ищем среди товаров, продающихся в России.</p>
-        <ul class="bc-find__list" id="bc-choice-list"></ul>
-        <div class="bc__actions">
-          <button class="btn-soft" type="button" id="bc-choice-back">Назад</button>
-          <button class="btn-soft" type="button" id="bc-choice-manual">Ввести вручную</button>
-        </div>
-      </div>
-
-      <!-- Товар не найден -->
       <div class="bc__new" id="bc-new" hidden>
         <p class="bc__notfound">Данный штрихкод не состоит в базе данных</p>
-        <p class="bc__new-head">Код <strong id="bc-code-new">—</strong>. Заполните карточку товара — он сохранится в базе, и в следующий раз найдётся сразу.</p>
-
+        <p class="bc__new-head">Код <strong id="bc-code-new">—</strong>. Заполните карточку товара — он сохранится в базу.</p>
         <div class="bc-find">
           <span class="bc__label">Найдите товар по названию — КБЖУ подставятся сами</span>
           <form class="bc-find__row" id="bc-find-form">
@@ -474,10 +455,9 @@
           <p class="bc-find__hint" id="bc-find-hint">Сначала ищем среди товаров, продающихся в России, затем по всему миру.</p>
           <ul class="bc-find__list" id="bc-find-list"></ul>
         </div>
-
         <div class="bc__form-grid">
-          <label class="bc__field bc__field--wide"><span>Полное название</span><input id="bc-new-name" type="text" maxlength="140" placeholder="Например, Йогурт питьевой клубника 2,5%"></label>
-          <label class="bc__field"><span>Бренд</span><input id="bc-new-brand" type="text" maxlength="40" placeholder="необязательно"></label>
+          <label class="bc__field bc__field--wide"><span>Полное название</span><input id="bc-new-name" type="text" maxlength="140"></label>
+          <label class="bc__field"><span>Бренд</span><input id="bc-new-brand" type="text" maxlength="40"></label>
           <label class="bc__field"><span>Единицы</span><select id="bc-new-unit"><option value="g">граммы</option><option value="ml">миллилитры</option></select></label>
           <label class="bc__field"><span>Ккал / 100</span><input id="bc-new-kcal" type="number" min="0" max="900" step="1" value="0"></label>
           <label class="bc__field"><span>Белки / 100</span><input id="bc-new-p" type="number" min="0" max="100" step="0.1" value="0"></label>
@@ -512,6 +492,6 @@
   <script src="data/barcodes.js"></script>
   <script src="data/barcode-sources.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-  <script src="data/script.js?v=24"></script>
+  <script src="data/script.js?v=26"></script>
 </body>
 </html>
