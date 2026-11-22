@@ -1,13 +1,11 @@
 /* ==========================================================================
-   NUTRIFLOW — логика приложения (ВЕРСИЯ 14)
-   · Штрихкоды: поиск по своей базе, затем по мировой; товар всегда
-     сохраняется в базуNutriFlow. Пользователь не видит названий источников.
-   · Счётные товары: порция в ШТУКАХ (масса штуки из базы), а также г и мл.
-   · Фото-сканер блюда, галерея, водный баланс, мастер цели, тёмная тема.
+   NUTRIFLOW — логика приложения (ВЕРСИЯ 16)
+   Штрихкоды: КБЖУ только по точному коду; похожие товары — на выбор
+   пользователя; исправления навсегда запоминаются под штрихкодом.
    ========================================================================== */
 'use strict';
 
-const APP_VERSION = '14.0';
+const APP_VERSION = '16.0';
 const LOG = (...args) => console.log(`%c[NutriFlow v${APP_VERSION}]`, 'color:#0e7d72;font-weight:bold', ...args);
 
 /* ------------------ 1. УТИЛИТЫ И ДАТЫ ------------------ */
@@ -19,9 +17,13 @@ const loadJSON = (key, fallback) => {
 };
 const saveJSON = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 const num0 = (n) => (Number.isFinite(+n) ? +n : 0);
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (n, a, b) => Math.min(Math.max(n, a), b);
+const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC_MAP[c]);
 const trimNum = (n) => { const s = Number(n).toFixed(1); return s.endsWith('.0') ? s.slice(0, -2) : s.replace('.', ','); };
+const setText = (sel, text) => { const el = $(sel); if (el) el.textContent = text; };
+const setVal = (sel, v) => { const el = $(sel); if (el) el.value = v; };
+const getVal = (sel) => { const el = $(sel); return el ? el.value : ''; };
 
 const GOALS = { kcal: 1800, p: 120, f: 70, c: 200 };
 const RING_LENGTH = 327;
@@ -50,7 +52,8 @@ function registerBarcode(entry) {
   if (!code) return null;
   const piece = num0(entry.piece);
   const pack = num0(entry.pack);
-  if (entry.id && PRODUCT_MAP.has(entry.id)) {
+  /* Личная запись пользователя всегда важнее справочника */
+  if (entry.id && PRODUCT_MAP.has(entry.id) && !entry.own) {
     const base = PRODUCT_MAP.get(entry.id);
     const merged = { ...base, barcode: code, piece: piece || num0(base.piece), pack: pack || num0(base.pack) };
     if (entry.unit === 'ml') merged.cat = 'drinks';
@@ -58,13 +61,16 @@ function registerBarcode(entry) {
     BARCODE_INDEX.set(code, base.id);
     return merged;
   }
-  const id = 'bc-' + code;
+  const id = entry.own ? 'bc-' + code : (entry.id && PRODUCT_MAP.has(entry.id) ? entry.id : 'bc-' + code);
   const unit = entry.unit === 'ml' ? 'ml' : 'g';
+  const base = PRODUCT_MAP.get(id);
   const product = {
-    id, barcode: code, cat: unit === 'ml' ? 'drinks' : 'barcode',
-    name: entry.name || 'Продукт ' + code, brand: entry.brand || '',
+    id, barcode: code, cat: unit === 'ml' ? 'drinks' : (base ? base.cat : 'barcode'),
+    name: entry.name || (base ? base.name : 'Продукт ' + code),
+    fullName: entry.fullName || entry.name || (base ? base.name : ''),
+    brand: entry.brand || '',
     kcal: num0(entry.kcal), p: num0(entry.p), f: num0(entry.f), c: num0(entry.c),
-    piece, pack,
+    piece, pack, own: Boolean(entry.own),
   };
   EXTRA_PRODUCTS.set(id, product);
   BARCODE_INDEX.set(code, id);
@@ -74,7 +80,7 @@ function rebuildBarcodes() {
   BARCODE_INDEX.clear();
   EXTRA_PRODUCTS.clear();
   SAFE_BARCODES.forEach(registerBarcode);
-  (state.barcodes || []).forEach(registerBarcode);
+  (state.barcodes || []).forEach((e) => registerBarcode({ ...e, own: true }));
 }
 const eanValid = (code) => {
   if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(code)) return false;
@@ -87,37 +93,42 @@ const findBarcode = (code) => {
   const id = BARCODE_INDEX.get(code);
   return id ? resolveProduct(id) : null;
 };
-const isShippedCode = (code) => SAFE_BARCODES.some((e) => String(e.code) === code);
 
 const isDrink = (p) => Boolean(p) && p.cat === 'drinks';
 const drinkDensity = (p) => {
-  const id = p.id;
+  const id = String(p && p.id);
   if (/^(vodka|cognac|whiskey|rum|gin)/.test(id)) return 0.95;
   if (/^(wine|champagne|beer)/.test(id)) return 0.99;
   if (/^(milkshake|cocoa-milk|latte|cappuccino|coffee-milk|frappe|mocha)/.test(id)) return 1.03;
   if (/^(juice|smoothie|compote|mors|kissel|lemonade|cola|pepsi|fanta|sprite|energy|kvass)/.test(id)) return 1.04;
   return 1;
 };
-/* Перевод порции в граммы: штуки → масса штуки, мл → плотность */
 const toGrams = (p, amount, unit) => {
   if (unit === 'pc') return amount * num0(p.piece);
   if (unit === 'ml') return amount * drinkDensity(p);
   return amount;
 };
-const unitLabel = (u) => u === 'pc' ? 'шт' : u === 'ml' ? 'мл' : 'г';
+const unitLabel = (u) => (u === 'pc' ? 'шт' : u === 'ml' ? 'мл' : 'г');
 const calcPortion = (p, amount, unit = 'g') => {
   const k = toGrams(p, amount, unit) / 100;
-  return { kcal: Math.round(p.kcal * k), p: +(p.p * k).toFixed(1), f: +(p.f * k).toFixed(1), c: +(p.c * k).toFixed(1) };
+  return {
+    kcal: Math.round(num0(p.kcal) * k),
+    p: +(num0(p.p) * k).toFixed(1),
+    f: +(num0(p.f) * k).toFixed(1),
+    c: +(num0(p.c) * k).toFixed(1),
+  };
 };
 const canPieces = (p) => num0(p && p.piece) > 0;
-const defaultUnit = (p) => canPieces(p) ? 'pc' : isDrink(p) ? 'ml' : 'g';
-const defaultAmount = (unit) => unit === 'pc' ? 1 : unit === 'ml' ? 250 : 100;
-const amountText = (amount, unit) => unit === 'pc' ? trimNum(amount) : String(Math.round(amount));
+const defaultUnit = (p) => (canPieces(p) ? 'pc' : isDrink(p) ? 'ml' : 'g');
+const defaultAmount = (unit) => (unit === 'pc' ? 1 : unit === 'ml' ? 250 : 100);
+const amountText = (amount, unit) => (unit === 'pc' ? trimNum(amount) : String(Math.round(amount)));
+const displayName = (p) => (p && (p.fullName || p.name)) || 'Товар';
 
 const itemProduct = (item) => {
+  if (!item) return null;
   const db = resolveProduct(item.id);
   if (db) return num0(item.piece) > 0 ? { ...db, piece: num0(item.piece) } : db;
-  if (item && item.custom) {
+  if (item.custom) {
     return {
       id: 'custom', cat: 'custom', name: item.custom.name || 'Блюдо с фото',
       kcal: num0(item.custom.kcal100), p: num0(item.custom.p100),
@@ -142,13 +153,14 @@ const dateTitle = (key) => {
 
 /* ------------------ 1.5. ТЕМА И ТОСТ ------------------ */
 const THEME_KEY = 'nutriflow.theme';
-const getTheme = () => localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+const getTheme = () => (localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light');
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const btn = $('#theme-toggle');
   if (btn) {
     const label = theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему';
-    btn.setAttribute('aria-label', label); btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
   }
 }
 let toastTimer = 0;
@@ -156,13 +168,15 @@ function showToast(message) {
   let el = $('#app-toast');
   if (!el) {
     el = document.createElement('div');
-    el.id = 'app-toast'; el.className = 'app-toast'; el.setAttribute('role', 'status');
+    el.id = 'app-toast';
+    el.className = 'app-toast';
+    el.setAttribute('role', 'status');
     document.body.append(el);
   }
   el.textContent = message;
   el.classList.add('is-visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2600);
+  toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2800);
 }
 function toggleTheme() {
   const next = getTheme() === 'dark' ? 'light' : 'dark';
@@ -179,7 +193,10 @@ const dbKey = (uid, domain) => `nutriflow.db.${uid}.${domain}.v2`;
 const loadUsers = () => loadJSON(DB_USERS, []);
 const setSession = (id) => saveJSON(DB_SESSION, id);
 const clearSession = () => localStorage.removeItem(DB_SESSION);
-const currentUser = () => { const id = loadJSON(DB_SESSION, null); return id ? loadUsers().find((u) => u.id === id) || null : null; };
+const currentUser = () => {
+  const id = loadJSON(DB_SESSION, null);
+  return id ? loadUsers().find((u) => u.id === id) || null : null;
+};
 const scopeUid = () => { const u = currentUser(); return u ? u.id : 'guest'; };
 const generateUid = (email) => {
   let hash = 0;
@@ -189,7 +206,9 @@ const generateUid = (email) => {
 function registerUser(name, email, password) {
   const users = loadUsers();
   const clean = email.toLowerCase().trim();
-  if (users.some((u) => u.email === clean)) return { error: 'Пользователь с такой почтой уже зарегистрирован — попробуйте войти.' };
+  if (users.some((u) => u.email === clean)) {
+    return { error: 'Пользователь с такой почтой уже зарегистрирован — попробуйте войти.' };
+  }
   const user = { id: generateUid(clean), name: name.trim(), email: clean, password };
   users.push(user);
   saveJSON(DB_USERS, users);
@@ -207,7 +226,9 @@ function registerUser(name, email, password) {
 function loginUser(email, password) {
   const clean = email.toLowerCase().trim();
   const user = loadUsers().find((u) => u.email === clean);
-  if (!user || user.password !== password) return { error: 'Неверная почта или пароль. Проверьте ввод и попробуйте ещё раз.' };
+  if (!user || user.password !== password) {
+    return { error: 'Неверная почта или пароль. Проверьте ввод и попробуйте ещё раз.' };
+  }
   setSession(user.id);
   LOG('Вход выполнен:', user.email, '| uid =', user.id);
   return { user };
@@ -243,12 +264,19 @@ function switchScope() {
   const scope = loadScope(scopeUid());
   state.uid = scopeUid();
   state.date = dateKey(state.dayOffset);
-  state.diary = scope.diary; state.history = scope.history;
-  state.weight = scope.weight; state.goals = scope.goals;
-  state.profile = scope.profile; state.water = scope.water;
-  state.photos = scope.photos; state.barcodes = scope.barcodes;
-  state.modalMeal = null; state.modalQuery = '';
-  state.selected.clear(); state.photoSelected.clear(); state.weightTarget = null;
+  state.diary = scope.diary;
+  state.history = scope.history;
+  state.weight = scope.weight;
+  state.goals = scope.goals;
+  state.profile = scope.profile;
+  state.water = scope.water;
+  state.photos = scope.photos;
+  state.barcodes = scope.barcodes;
+  state.modalMeal = null;
+  state.modalQuery = '';
+  state.selected.clear();
+  state.photoSelected.clear();
+  state.weightTarget = null;
   rebuildBarcodes();
   renderUserBadge();
   LOG('Активный профиль:', state.uid, '| товаров в базе штрихкодов:', BARCODE_INDEX.size);
@@ -259,9 +287,11 @@ function renderUserBadge() {
   let badge = $('#sidebar-user-badge');
   if (!badge) {
     badge = document.createElement('a');
-    badge.id = 'sidebar-user-badge'; badge.href = 'profile.html';
+    badge.id = 'sidebar-user-badge';
+    badge.href = 'profile.html';
     badge.className = 'sidebar__note';
-    badge.style.fontWeight = '700'; badge.style.color = 'var(--clr-teal-deep)';
+    badge.style.fontWeight = '700';
+    badge.style.color = 'var(--clr-teal-deep)';
     foot.prepend(badge);
   }
   const user = currentUser();
@@ -288,26 +318,34 @@ function dayTotals() {
     const p = itemProduct(item);
     if (!p) return;
     const portion = calcPortion(p, item.weight, item.unit);
-    totals.kcal += portion.kcal; totals.p += portion.p; totals.f += portion.f; totals.c += portion.c;
+    totals.kcal += portion.kcal;
+    totals.p += portion.p;
+    totals.f += portion.f;
+    totals.c += portion.c;
   }));
-  totals.p = Math.round(totals.p); totals.f = Math.round(totals.f); totals.c = Math.round(totals.c);
+  totals.p = Math.round(totals.p);
+  totals.f = Math.round(totals.f);
+  totals.c = Math.round(totals.c);
   return totals;
 }
 function renderSummary() {
   const totals = dayTotals();
   const goals = state.goals || GOALS;
-  const ring = $('#ring-progress'), value = $('#ring-value'), goalLabel = $('#ring-goal');
+  const ring = $('#ring-progress');
+  const value = $('#ring-value');
+  const goalLabel = $('#ring-goal');
   if (ring && value) {
-    const ratio = Math.min(totals.kcal / goals.kcal, 1);
+    const ratio = Math.min(totals.kcal / Math.max(num0(goals.kcal), 1), 1);
     ring.style.strokeDashoffset = String(Math.round(RING_LENGTH * (1 - ratio)));
     ring.classList.toggle('is-over', totals.kcal > goals.kcal);
     value.textContent = totals.kcal.toLocaleString('ru-RU');
   }
-  if (goalLabel) goalLabel.textContent = `из ${goals.kcal.toLocaleString('ru-RU')} ккал`;
+  if (goalLabel) goalLabel.textContent = `из ${num0(goals.kcal).toLocaleString('ru-RU')} ккал`;
   [['protein', totals.p, goals.p], ['fat', totals.f, goals.f], ['carb', totals.c, goals.c]].forEach(([key, fact, goal]) => {
-    const bar = $(`[data-macro-bar="${key}"]`), label = $(`[data-macro-value="${key}"]`);
-    if (bar) bar.style.width = `${Math.min((fact / goal) * 100, 100)}%`;
-    if (label) label.textContent = `${fact} / ${goal} г`;
+    const bar = $(`[data-macro-bar="${key}"]`);
+    const label = $(`[data-macro-value="${key}"]`);
+    if (bar) bar.style.width = `${Math.min((fact / Math.max(num0(goal), 1)) * 100, 100)}%`;
+    if (label) label.textContent = `${fact} / ${num0(goal)} г`;
   });
 }
 const renderDate = () => { const el = $('#diary-date'); if (el) el.textContent = dateTitle(state.date); };
@@ -320,9 +358,9 @@ function mealItemTemplate(item, index) {
   const portion = calcPortion(p, item.weight, unit);
   return `<li class="meal-item" data-index="${index}">
     <span class="meal-item__name">${esc(p.name)}</span>
-    <button class="meal-item__weight" data-action="edit-weight" title="Нажмите, чтобы изменить порцию">${amountText(item.weight, unit)} ${unitLabel(unit)}</button>
+    <button class="meal-item__weight" type="button" data-action="edit-weight" title="Нажмите, чтобы изменить порцию">${amountText(item.weight, unit)} ${unitLabel(unit)}</button>
     <span class="meal-item__cals">${portion.kcal} ккал</span>
-    <button class="meal-item__delete" data-action="delete" aria-label="Удалить «${esc(p.name)}»">
+    <button class="meal-item__delete" type="button" data-action="delete" aria-label="Удалить «${esc(p.name)}»">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
     </button>
   </li>`;
@@ -330,7 +368,8 @@ function mealItemTemplate(item, index) {
 function renderMeals() {
   const day = dayEntries();
   MEALS.forEach(({ key }) => {
-    const list = $(`[data-meal-list="${key}"]`), total = $(`[data-meal-total="${key}"]`);
+    const list = $(`[data-meal-list="${key}"]`);
+    const total = $(`[data-meal-total="${key}"]`);
     if (!list) return;
     const items = day[key] || [];
     list.innerHTML = items.length ? items.map(mealItemTemplate).join('') : '<li class="meal-card__empty">Пока ничего не добавлено</li>';
@@ -350,15 +389,22 @@ let weightModal = null, weightInput = null, scanModal = null, confirmModal = nul
 
 function openModal(mealKey) {
   if (!modalEl) return;
-  state.modalMeal = mealKey; state.modalQuery = '';
-  state.selected.clear(); state.photoSelected.clear();
+  state.modalMeal = mealKey;
+  state.modalQuery = '';
+  state.selected.clear();
+  state.photoSelected.clear();
   modalSearch.value = '';
-  modalEl.hidden = false; document.body.classList.add('no-scroll');
-  switchTab('search'); updateSaveBtn(); modalSearch.focus();
+  modalEl.hidden = false;
+  document.body.classList.add('no-scroll');
+  switchTab('search');
+  updateSaveBtn();
+  modalSearch.focus();
 }
 function closeModal() {
   if (!modalEl) return;
-  modalEl.hidden = true; document.body.classList.remove('no-scroll'); state.modalMeal = null;
+  modalEl.hidden = true;
+  document.body.classList.remove('no-scroll');
+  state.modalMeal = null;
 }
 function switchTab(tab) {
   state.modalTab = tab;
@@ -379,11 +425,11 @@ function rowTemplate(p, lastWeight, lastUnit, lastPiece) {
     ? `последний раз ${amountText(lastWeight, unit)} ${unitLabel(unit)}`
     : piece > 0 ? `1 шт ≈ ${trimNum(piece)} г` : '';
   return `<li class="modal__item">
-    <button class="modal__item-btn ${selected ? 'is-selected' : ''}" data-product="${p.id}"
+    <button class="modal__item-btn ${selected ? 'is-selected' : ''}" type="button" data-product="${esc(p.id)}"
       data-last="${lastWeight ?? ''}" data-last-unit="${unit}" data-last-piece="${piece || ''}">
-      <span class="modal__item-name">${esc(p.name)}</span>
-      ${hint ? `<span class="modal__item-last">${hint}</span>` : ''}
-      <span class="modal__item-kcal">${p.kcal} ккал / 100 ${isDrink(p) ? 'мл' : 'г'}</span>
+      <span class="modal__item-name">${esc(displayName(p))}</span>
+      ${hint ? `<span class="modal__item-last">${esc(hint)}</span>` : ''}
+      <span class="modal__item-kcal">${num0(p.kcal)} ккал / 100 ${isDrink(p) ? 'мл' : 'г'}</span>
       <span class="modal__item-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
     </button>
   </li>`;
@@ -392,10 +438,10 @@ function photoRows() {
   return (state.photos || []).map((ph) => {
     const sel = state.photoSelected.has(ph.id);
     return `<li class="modal__item">
-      <button class="modal__item-btn modal__item-btn--photo ${sel ? 'is-selected' : ''}" data-photo-pick="${ph.id}">
+      <button class="modal__item-btn modal__item-btn--photo ${sel ? 'is-selected' : ''}" type="button" data-photo-pick="${esc(ph.id)}">
         <img class="modal__photo-thumb" src="${ph.img}" alt="" loading="lazy">
         <span class="modal__item-name">${esc(ph.dish)}</span>
-        <span class="modal__item-kcal">${ph.kcal} ккал</span>
+        <span class="modal__item-kcal">${num0(ph.kcal)} ккал</span>
         <span class="modal__item-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
       </button>
     </li>`;
@@ -414,7 +460,7 @@ function renderModalList() {
 function searchRows() {
   const q = state.modalQuery.trim().toLowerCase();
   const pool = allProducts();
-  const source = q ? pool.filter((p) => p.name.toLowerCase().includes(q)) : pool;
+  const source = q ? pool.filter((p) => displayName(p).toLowerCase().includes(q)) : pool;
   return source.map((p) => rowTemplate(p, null));
 }
 function recentRows() {
@@ -425,8 +471,10 @@ function recentRows() {
 }
 function toggleProduct(btn) {
   const id = btn.dataset.product;
-  if (state.selected.has(id)) { state.selected.delete(id); btn.classList.remove('is-selected'); }
-  else {
+  if (state.selected.has(id)) {
+    state.selected.delete(id);
+    btn.classList.remove('is-selected');
+  } else {
     const p = resolveProduct(id);
     const unit = btn.dataset.lastUnit || defaultUnit(p);
     const last = Number(btn.dataset.last);
@@ -438,8 +486,13 @@ function toggleProduct(btn) {
 }
 function togglePhotoPick(btn) {
   const id = btn.dataset.photoPick;
-  if (state.photoSelected.has(id)) { state.photoSelected.delete(id); btn.classList.remove('is-selected'); }
-  else { state.photoSelected.add(id); btn.classList.add('is-selected'); }
+  if (state.photoSelected.has(id)) {
+    state.photoSelected.delete(id);
+    btn.classList.remove('is-selected');
+  } else {
+    state.photoSelected.add(id);
+    btn.classList.add('is-selected');
+  }
   updateSaveBtn();
 }
 function updateSaveBtn() {
@@ -473,7 +526,10 @@ function saveSelection() {
     const ph = (state.photos || []).find((p) => p.id === pid);
     if (ph) addPhotoItems(ph.items, state.modalMeal);
   });
-  persistDiary(); renderMeals(); renderSummary(); closeModal();
+  persistDiary();
+  renderMeals();
+  renderSummary();
+  closeModal();
 }
 function pushHistory(id, weight, unit, piece) {
   if (!resolveProduct(id)) return;
@@ -489,12 +545,14 @@ function pushHistory(id, weight, unit, piece) {
 function weightTargetProduct() {
   const t = state.weightTarget;
   if (!t) return null;
-  return itemProduct(dayEntries()[t.meal][t.index]);
+  const bucket = dayEntries()[t.meal];
+  return bucket ? itemProduct(bucket[t.index]) : null;
 }
 function setUnitUI(unit, p) {
   const toggle = $('#weight-unit-toggle');
   if (!toggle) return;
-  const pc = canPieces(p), ml = isDrink(p);
+  const pc = canPieces(p);
+  const ml = isDrink(p);
   $$('.unit-switch__btn', toggle).forEach((btn) => {
     const u = btn.dataset.unit;
     const avail = u === 'pc' ? pc : u === 'ml' ? ml : true;
@@ -503,7 +561,8 @@ function setUnitUI(unit, p) {
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-pressed', String(active));
   });
-  const sepPc = $('[data-sep="pc"]', toggle), sepMl = $('[data-sep="ml"]', toggle);
+  const sepPc = $('[data-sep="pc"]', toggle);
+  const sepMl = $('[data-sep="ml"]', toggle);
   if (sepPc) sepPc.hidden = !pc;
   if (sepMl) sepMl.hidden = !ml;
   toggle.hidden = !pc && !ml;
@@ -522,18 +581,22 @@ function openWeightModal(mealKey, index) {
   if (!p) return;
   const unit = item.unit === 'ml' ? 'ml' : item.unit === 'pc' ? 'pc' : item.unit === 'g' ? 'g' : defaultUnit(p);
   state.weightTarget = { meal: mealKey, index, unit };
-  $('#weight-name').textContent = p.name;
+  setText('#weight-name', displayName(p));
   setUnitUI(unit, p);
   weightInput.step = unit === 'pc' ? '0.5' : '1';
   weightInput.min = unit === 'pc' ? '0.5' : '1';
   weightInput.value = item.weight;
   updateWeightHint();
-  weightModal.hidden = false; document.body.classList.add('no-scroll');
-  weightInput.focus(); weightInput.select();
+  weightModal.hidden = false;
+  document.body.classList.add('no-scroll');
+  weightInput.focus();
+  weightInput.select();
 }
 function closeWeightModal() {
   if (!weightModal) return;
-  weightModal.hidden = true; document.body.classList.remove('no-scroll'); state.weightTarget = null;
+  weightModal.hidden = true;
+  document.body.classList.remove('no-scroll');
+  state.weightTarget = null;
 }
 function setWeightUnit(next) {
   const t = state.weightTarget;
@@ -562,7 +625,7 @@ function updateWeightHint() {
   const amount = Math.max(num0(weightInput.value), 0);
   const m = calcPortion(p, amount, t.unit);
   const grams = t.unit === 'pc' ? ` · ${Math.round(toGrams(p, amount, 'pc'))} г` : '';
-  $('#weight-kcal').textContent = `${m.kcal} ккал${grams}`;
+  setText('#weight-kcal', `${m.kcal} ккал${grams}`);
 }
 function saveWeight() {
   const t = state.weightTarget;
@@ -571,24 +634,34 @@ function saveWeight() {
   const item = dayEntries()[t.meal][t.index];
   const raw = num0(weightInput.value);
   const amount = t.unit === 'pc' ? clamp(Math.round(raw * 2) / 2, 0.5, 200) : clamp(Math.round(raw), 0, 5000);
-  if (amount > 0 && p) {
+  if (amount > 0 && p && item) {
     item.weight = amount;
     item.unit = t.unit;
     if (canPieces(p)) item.piece = num0(p.piece); else delete item.piece;
     pushHistory(item.id, amount, t.unit, item.piece);
   }
-  persistDiary(); renderMeals(); renderSummary(); closeWeightModal();
+  persistDiary();
+  renderMeals();
+  renderSummary();
+  closeWeightModal();
 }
 function deleteItem(mealKey, index) {
-  dayEntries()[mealKey].splice(index, 1);
-  persistDiary(); renderMeals(); renderSummary();
+  const bucket = dayEntries()[mealKey];
+  if (!Array.isArray(bucket)) return;
+  bucket.splice(index, 1);
+  persistDiary();
+  renderMeals();
+  renderSummary();
 }
 
 /* ------------------ 9. НАВИГАЦИЯ ПО ДНЯМ ------------------ */
 function shiftDay(delta) {
   state.dayOffset += delta;
   state.date = dateKey(state.dayOffset);
-  renderDate(); renderMeals(); renderSummary(); renderWater();
+  renderDate();
+  renderMeals();
+  renderSummary();
+  renderWater();
 }
 
 /* ------------------ 9.5. ВОДНЫЙ БАЛАНС ------------------ */
@@ -605,28 +678,28 @@ function renderWater() {
   const root = $('#water-card');
   if (!root) return;
   const entries = waterEntries();
-  const total = entries.reduce((sum, e) => sum + e.ml, 0);
+  const total = entries.reduce((sum, e) => sum + num0(e.ml), 0);
   const goal = waterGoalMl();
   const pct = goal > 0 ? Math.round((total / goal) * 100) : 0;
   const ring = $('#water-ring');
   if (ring) ring.style.strokeDashoffset = String(Math.round(RING_LENGTH * (1 - Math.min(total / goal, 1))));
-  const totalEl = $('#water-total'); if (totalEl) totalEl.textContent = total.toLocaleString('ru-RU');
-  const goalEl = $('#water-goal'); if (goalEl) goalEl.textContent = `из ${goal.toLocaleString('ru-RU')} мл`;
-  const pctEl = $('#water-percent'); if (pctEl) pctEl.textContent = `${pct}%`;
-  const bar = $('#water-bar'); if (bar) bar.style.width = `${Math.min(pct, 100)}%`;
+  setText('#water-total', total.toLocaleString('ru-RU'));
+  setText('#water-goal', `из ${goal.toLocaleString('ru-RU')} мл`);
+  setText('#water-percent', `${pct}%`);
+  const bar = $('#water-bar');
+  if (bar) bar.style.width = `${Math.min(pct, 100)}%`;
   const done = goal > 0 && total >= goal;
   root.classList.toggle('is-done', done);
-  const hint = $('#water-hint');
-  if (hint) hint.textContent = done
+  setText('#water-hint', done
     ? 'Норма воды выполнена — отличная работа!'
-    : 'Норма подставляется из вашей цели. Нажимайте на ёмкости, чтобы отмечать выпитое.';
+    : 'Норма подставляется из вашей цели. Нажимайте на ёмкости, чтобы отмечать выпитое.');
   const list = $('#water-log');
   if (list) {
     list.innerHTML = entries.length
       ? entries.map((e, i) => `<li class="water__log-item">
-          <span class="water__log-ml">${e.ml} мл</span>
+          <span class="water__log-ml">${num0(e.ml)} мл</span>
           <span class="water__log-time">${new Date(e.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
-          <button class="water__log-del" type="button" data-water-del="${i}" aria-label="Удалить запись ${e.ml} мл">
+          <button class="water__log-del" type="button" data-water-del="${i}" aria-label="Удалить запись ${num0(e.ml)} мл">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </li>`).join('')
@@ -636,7 +709,8 @@ function renderWater() {
 function addWater(ml) {
   if (!ml || ml <= 0) return;
   waterEntries().unshift({ ml, ts: Date.now() });
-  persistWater(); renderWater();
+  persistWater();
+  renderWater();
 }
 function splashWater(btn) {
   btn.classList.remove('is-splash');
@@ -648,7 +722,8 @@ function deleteWater(index) {
   const entries = waterEntries();
   if (!Number.isInteger(index) || index < 0 || index >= entries.length) return;
   entries.splice(index, 1);
-  persistWater(); renderWater();
+  persistWater();
+  renderWater();
 }
 
 /* ==========================================================================
@@ -743,14 +818,14 @@ async function scanRequest(model) {
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const normName = (s) => String(s).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+const normName = (s) => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 function matchProduct(name) {
   const qn = normName(name);
   if (!qn) return null;
   const qt = qn.split(' ').filter((w) => w.length > 2);
   let best = null;
   for (const p of allProducts()) {
-    const pn = normName(p.name);
+    const pn = normName(displayName(p));
     let hit = 0;
     for (const w of qt) if (pn.includes(w)) hit++;
     const score = hit / Math.max(qt.length, 1) + ((pn.includes(qn) || qn.includes(pn)) ? 0.5 : 0);
@@ -780,21 +855,25 @@ const scanPortion = (it) => {
 };
 function scanTotals() {
   const t = { kcal: 0, p: 0, f: 0, c: 0 };
-  scan.items.forEach((it) => { const m = scanPortion(it); t.kcal += m.kcal; t.p += m.p; t.f += m.f; t.c += m.c; });
+  scan.items.forEach((it) => {
+    const m = scanPortion(it);
+    t.kcal += m.kcal; t.p += m.p; t.f += m.f; t.c += m.c;
+  });
   t.p = Math.round(t.p); t.f = Math.round(t.f); t.c = Math.round(t.c);
   return t;
 }
 function setScanStage(stage) {
-  $('#scan-pick').hidden = stage !== 'pick';
-  $('#scan-busy').hidden = stage !== 'busy';
-  $('#scan-result').hidden = stage !== 'result';
-  $('#scan-error').hidden = stage !== 'error';
+  const map = { pick: '#scan-pick', busy: '#scan-busy', result: '#scan-result', error: '#scan-error' };
+  Object.entries(map).forEach(([key, sel]) => {
+    const el = $(sel);
+    if (el) el.hidden = key !== stage;
+  });
 }
 function openScan(meal) {
   if (!scanModal) return;
   scan.seq++;
   scan.meal = meal; scan.photoId = null; scan.busy = false; scan.viewMode = false;
-  $('#scan-meal').textContent = MEAL_LABELS[meal] || 'Приём пищи';
+  setText('#scan-meal', MEAL_LABELS[meal] || 'Приём пищи');
   setScanStage('pick');
   scanModal.hidden = false;
   document.body.classList.add('no-scroll');
@@ -802,7 +881,8 @@ function openScan(meal) {
 }
 function closeScan() {
   if (!scanModal) return;
-  scan.seq++; scan.busy = false;
+  scan.seq++;
+  scan.busy = false;
   scanModal.hidden = true;
   document.body.classList.remove('no-scroll');
 }
@@ -813,14 +893,17 @@ async function handleScanFile(file) {
     try {
       const send = await shrinkImage(String(fr.result), 1024, 0.8);
       const store = await shrinkImage(String(fr.result), 560, 0.62);
-      scan.dataUrl = send.url; scan.thumb = store.url; scan.photoId = null; scan.viewMode = false;
+      scan.dataUrl = send.url;
+      scan.thumb = store.url;
+      scan.photoId = null;
+      scan.viewMode = false;
       runScan();
     } catch (e) {
-      $('#scan-error-text').textContent = e.message || 'Не удалось прочитать фото';
+      setText('#scan-error-text', e.message || 'Не удалось прочитать фото');
       setScanStage('error');
     }
   };
-  fr.onerror = () => { $('#scan-error-text').textContent = 'Не удалось прочитать файл'; setScanStage('error'); };
+  fr.onerror = () => { setText('#scan-error-text', 'Не удалось прочитать файл'); setScanStage('error'); };
   fr.readAsDataURL(file);
 }
 async function runScan() {
@@ -832,7 +915,7 @@ async function runScan() {
   const failures = [];
   for (const model of SCAN_MODELS) {
     for (let attempt = 1; attempt <= 2; attempt++) {
-      $('#scan-status').textContent = `Сканирую фото · ${model.replace('google/', '')}${attempt > 1 ? ' · повтор ' + attempt : ''}…`;
+      setText('#scan-status', `Сканирую фото · ${model.replace('google/', '')}${attempt > 1 ? ' · повтор ' + attempt : ''}…`);
       try {
         const raw = await scanRequest(model);
         if (token !== scan.seq) return;
@@ -862,12 +945,12 @@ async function runScan() {
     }
   }
   scan.busy = false;
-  $('#scan-error-text').textContent = failures.join(' | ') || 'Модели не ответили. Попробуйте ещё раз.';
+  setText('#scan-error-text', failures.join(' | ') || 'Модели не ответили. Попробуйте ещё раз.');
   setScanStage('error');
 }
 function renderScanResult() {
   $('#scan-img-result').src = scan.thumb || scan.dataUrl;
-  $('#scan-dish').textContent = scan.dish || 'Блюдо';
+  setText('#scan-dish', scan.dish || 'Блюдо');
   $('#scan-items').innerHTML = scan.items.map((it) => {
     const m = scanPortion(it);
     return `<li class="scan__item">
@@ -878,13 +961,12 @@ function renderScanResult() {
     </li>`;
   }).join('');
   const t = scanTotals();
-  $('#scan-total-kcal').textContent = `${t.kcal} ккал`;
-  $('#scan-total-macros').textContent = `Б ${trimNum(t.p)} · Ж ${trimNum(t.f)} · У ${trimNum(t.c)}`;
-  $('#scan-note').textContent = scan.note;
-  const hint = $('#scan-hint');
-  if (hint) hint.textContent = scan.viewMode
+  setText('#scan-total-kcal', `${t.kcal} ккал`);
+  setText('#scan-total-macros', `Б ${trimNum(t.p)} · Ж ${trimNum(t.f)} · У ${trimNum(t.c)}`);
+  setText('#scan-note', scan.note);
+  setText('#scan-hint', scan.viewMode
     ? 'Фото из галереи. Чтобы добавить блюдо в приём пищи: «+ Добавить» → вкладка «Фото».'
-    : 'Фото сохранено в галерею. Чтобы добавить блюдо в приём пищи: «+ Добавить» → вкладка «Фото».';
+    : 'Фото сохранено в галерею. Чтобы добавить блюдо в приём пищи: «+ Добавить» → вкладка «Фото».');
 }
 function saveScanPhoto() {
   const t = scanTotals();
@@ -914,18 +996,19 @@ function renderPhotos() {
   const grid = $('#photos-grid');
   if (!grid) return;
   const list = state.photos || [];
-  const count = $('#photos-count'); if (count) count.textContent = String(list.length);
-  const empty = $('#photos-empty'); if (empty) empty.hidden = list.length > 0;
+  setText('#photos-count', String(list.length));
+  const empty = $('#photos-empty');
+  if (empty) empty.hidden = list.length > 0;
   grid.innerHTML = list.map((ph) => `<li class="photo-card">
-    <button class="photo-card__open" type="button" data-photo-open="${ph.id}" aria-label="Открыть фото: ${esc(ph.dish)}">
+    <button class="photo-card__open" type="button" data-photo-open="${esc(ph.id)}" aria-label="Открыть фото: ${esc(ph.dish)}">
       <img src="${ph.img}" alt="${esc(ph.dish)}" loading="lazy">
     </button>
     <div class="photo-card__body">
       <strong class="photo-card__name">${esc(ph.dish)}</strong>
-      <span class="photo-card__kcal">${ph.kcal} ккал</span>
+      <span class="photo-card__kcal">${num0(ph.kcal)} ккал</span>
       <span class="photo-card__meta">${MEAL_LABELS[ph.meal] || ''} · ${fmtDateTime(ph.ts)}</span>
     </div>
-    <button class="photo-card__del" type="button" data-photo-del="${ph.id}" aria-label="Удалить фото: ${esc(ph.dish)}" title="Удалить фото">
+    <button class="photo-card__del" type="button" data-photo-del="${esc(ph.id)}" aria-label="Удалить фото: ${esc(ph.dish)}" title="Удалить фото">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
     </button>
   </li>`).join('');
@@ -939,7 +1022,7 @@ function openScanView(id) {
   scan.dish = ph.dish; scan.thumb = ph.img; scan.dataUrl = ph.img;
   scan.model = ph.model || ''; scan.busy = false;
   scan.note = `Сохранено ${fmtDateTime(ph.ts)}`;
-  $('#scan-meal').textContent = MEAL_LABELS[ph.meal] || 'Приём пищи';
+  setText('#scan-meal', MEAL_LABELS[ph.meal] || 'Приём пищи');
   renderScanResult();
   setScanStage('result');
   scanModal.hidden = false;
@@ -968,12 +1051,11 @@ function confirmDeletePhoto() {
 
 /* ==========================================================================
    9.7. ШТРИХКОДЫ
-   Своя база → мировая база → карточка товара. Источник пользователю
-   не показывается; найденный товар всегда попадает в базу NutriFlow.
    ========================================================================== */
 const bc = {
   meal: 'breakfast', code: '', product: null, unit: 'g', amount: 1,
   stream: null, timer: 0, detector: null, seq: 0,
+  candidates: [], confirmed: false, trusted: false, query: '',
 };
 const BC_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'];
 
@@ -995,16 +1077,22 @@ function setBcStatus(text, kind) {
   el.dataset.kind = kind || 'info';
 }
 function setBcStage(stage) {
-  ['start', 'search', 'result', 'new'].forEach((s) => {
+  ['start', 'search', 'result', 'choice', 'new'].forEach((s) => {
     const el = $('#bc-' + s);
     if (el) el.hidden = s !== stage;
   });
 }
 function openBarcode(meal) {
   if (!bcModal) return;
-  bc.meal = meal; bc.seq++;
-  $('#bc-meal').textContent = MEAL_LABELS[meal] || 'Приём пищи';
-  $('#bc-input').value = '';
+  bc.meal = meal;
+  bc.seq++;
+  bc.candidates = [];
+  bc.confirmed = false;
+  bc.trusted = false;
+  setText('#bc-meal', MEAL_LABELS[meal] || 'Приём пищи');
+  setVal('#bc-input', '');
+  const trace = $('#bc-trace');
+  if (trace) trace.hidden = true;
   setBcStage('start');
   setBcStatus('Наведите камеру на штрихкод или введите цифры вручную.', 'info');
   renderBcSaved();
@@ -1018,9 +1106,10 @@ function closeBarcode() {
   bcModal.hidden = true;
   document.body.classList.remove('no-scroll');
 }
-/* ---- Сканирование: нативный детектор (Chrome/Edge) или ZXing (все браузеры) ---- */
-let bcReader = null;    // декодер ZXing
-let bcControls = null;  // управление камерой ZXing
+
+/* ---- Сканирование: нативный детектор или ZXing ---- */
+let bcReader = null;
+let bcControls = null;
 const hasNativeDetector = () => 'BarcodeDetector' in window;
 const hasZxing = () => typeof ZXing !== 'undefined' && Boolean(ZXing.BrowserMultiFormatReader);
 const canUseCamera = () => Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -1037,13 +1126,11 @@ function zxingReader() {
   bcReader = new ZXing.BrowserMultiFormatReader(hints, 250);
   return bcReader;
 }
-
 async function makeDetector() {
   const supported = await window.BarcodeDetector.getSupportedFormats();
   const formats = BC_FORMATS.filter((f) => supported.includes(f));
   return new window.BarcodeDetector(formats.length ? { formats } : undefined);
 }
-
 async function startBcCamera() {
   const video = $('#bc-video');
   if (!video) return;
@@ -1051,8 +1138,6 @@ async function startBcCamera() {
     setBcStatus('Камера недоступна. Введите цифры вручную — поиск по базе работает везде.', 'warn');
     return;
   }
-
-  /* Путь 1: нативный детектор — самый быстрый, если браузер его умеет */
   if (hasNativeDetector()) {
     try {
       bc.detector = await makeDetector();
@@ -1067,8 +1152,6 @@ async function startBcCamera() {
       return;
     } catch { stopBcCamera(); }
   }
-
-  /* Путь 2: ZXing — Firefox, Safari и любой другой браузер */
   if (hasZxing()) {
     try {
       const reader = zxingReader();
@@ -1092,11 +1175,8 @@ async function startBcCamera() {
       return;
     }
   }
-
   setBcStatus('Сканер камеры не загрузился. Проверьте интернет или введите цифры вручную.', 'warn');
 }
-
-/* Цикл распознавания только для нативного детектора */
 function bcLoop() {
   clearTimeout(bc.timer);
   const tick = async () => {
@@ -1111,17 +1191,15 @@ function bcLoop() {
   };
   bc.timer = setTimeout(tick, 200);
 }
-
 function stopBcCamera() {
-  clearTimeout(bc.timer); bc.timer = 0;
+  clearTimeout(bc.timer);
+  bc.timer = 0;
   if (bcControls) { try { bcControls.stop(); } catch { /* уже остановлено */ } bcControls = null; }
   if (bc.stream) { bc.stream.getTracks().forEach((t) => t.stop()); bc.stream = null; }
   if (bcReader) { try { bcReader.reset(); } catch { /* нечего сбрасывать */ } }
   const v = $('#bc-video'); if (v) v.srcObject = null;
   const c = $('#bc-camera'); if (c) c.hidden = true;
 }
-
-/* Распознавание штрихкода по загруженному фото */
 async function detectBarcodeFromImage(file) {
   if (!file || !file.type.startsWith('image/')) { setBcStatus('Нужен файл изображения.', 'bad'); return; }
   setBcStatus('Читаю штрихкод на фото…', 'info');
@@ -1133,7 +1211,6 @@ async function detectBarcodeFromImage(file) {
       i.onerror = () => reject(new Error('Не удалось открыть изображение'));
       i.src = url;
     });
-
     if (hasNativeDetector()) {
       try {
         const detector = await makeDetector();
@@ -1142,11 +1219,9 @@ async function detectBarcodeFromImage(file) {
         if (raw) { handleBarcode(raw); return; }
       } catch { /* переходим к ZXing */ }
     }
-
     if (hasZxing()) {
       const reader = zxingReader();
       const attempts = [img];
-      /* Крупное фото уменьшаем — так полосы штрихкода читаются надёжнее */
       const k = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
       if (k < 1 && typeof reader.decodeFromCanvas === 'function') {
         const c = document.createElement('canvas');
@@ -1162,10 +1237,9 @@ async function detectBarcodeFromImage(file) {
             : await reader.decodeFromImageElement(source);
           const raw = String(result?.getText?.() || '').replace(/\D/g, '');
           if (raw) { handleBarcode(raw); return; }
-        } catch { /* код не найден на этом варианте — пробуем следующий */ }
+        } catch { /* пробуем следующий вариант */ }
       }
     }
-
     setBcStatus('На фото штрихкод не найден. Снимите ближе и ровнее или введите цифры.', 'warn');
   } catch (e) {
     setBcStatus('Не удалось прочитать фото: ' + (e.message || e.name), 'bad');
@@ -1173,56 +1247,13 @@ async function detectBarcodeFromImage(file) {
     URL.revokeObjectURL(url);
   }
 }
-/* Массу штуки и упаковки берём из данных о порции и весе упаковки */
-const gramsFromText = (txt) => {
-  const m = String(txt || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*(?:g|гр|г|грамм)/i);
-  return m ? num0(m[1]) : 0;
-};
-const piecesFromText = (txt) => {
-  const m = String(txt || '').match(/(\d+)\s*(?:шт|штук|pieces?|pcs?|pies?|bars?|пирожн|батончик)/i);
-  return m ? num0(m[1]) : 0;
-};
-async function fetchWorldProduct(code) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    const fields = 'product_name,product_name_ru,brands,nutriments,serving_quantity,serving_size,product_quantity,quantity';
-    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${fields}`, { signal: ctrl.signal });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.status !== 1 || !data.product) return null;
-    const pr = data.product;
-    const n = pr.nutriments || {};
-    const kcal = num0(n['energy-kcal_100g']) || Math.round(num0(n['energy_100g']) / 4.184);
-    const p = num0(n.proteins_100g), f = num0(n.fat_100g), c = num0(n.carbohydrates_100g);
-    if (!kcal && !p && !f && !c) return null;
 
-    const servingGrams = num0(pr.serving_quantity) || gramsFromText(pr.serving_size);
-    const servingPieces = piecesFromText(pr.serving_size);
-    const pack = num0(pr.product_quantity) || gramsFromText(pr.quantity);
-    let piece = servingGrams > 0 && servingGrams < 2000
-      ? (servingPieces > 1 ? servingGrams / servingPieces : servingGrams)
-      : 0;
-    const packPieces = piecesFromText(pr.quantity);
-    if (!piece && pack > 0 && packPieces > 1) piece = pack / packPieces;
-    if (piece && pack && piece > pack) piece = 0;
-
-    return {
-      id: null, code, name: pr.product_name_ru || pr.product_name || 'Продукт ' + code,
-      brand: String(pr.brands || '').split(',')[0].trim(),
-      kcal, p, f, c, cat: 'barcode',
-      piece: piece ? Math.round(piece * 10) / 10 : 0,
-      pack: pack || 0,
-    };
-  } catch { return null; }
-  finally { clearTimeout(timer); }
+async function fetchWorldProduct(code, onProgress) {
+  if (typeof BarcodeSources === 'undefined') return null;
+  try { return await BarcodeSources.lookup(code, { onProgress }); }
+  catch (e) { LOG('Каскад баз:', e.message); return null; }
 }
 
-function prepareBcProduct(product) {
-  bc.product = product;
-  bc.unit = defaultUnit(product);
-  bc.amount = defaultAmount(bc.unit);
-}
 async function handleBarcode(raw) {
   const code = String(raw || '').replace(/\D/g, '');
   if (code.length < 8) {
@@ -1231,55 +1262,257 @@ async function handleBarcode(raw) {
     return;
   }
   const token = ++bc.seq;
-  bc.code = code; bc.product = null;
-  $('#bc-code-search').textContent = code;
+  bc.code = code;
+  bc.product = null;
+  bc.candidates = [];
+  bc.confirmed = false;
+  bc.trusted = false;
+  setText('#bc-code-search', code);
+  const trace = $('#bc-trace');
+  if (trace) trace.hidden = true;
   setBcStage('search');
   setBcStatus(eanValid(code) ? 'Ищу товар…' : 'Контрольная сумма не сходится — проверьте цифры. Всё равно ищу.', eanValid(code) ? 'info' : 'warn');
 
   const local = findBarcode(code);
   if (local) {
     if (token !== bc.seq) return;
+    bc.trusted = true;
     prepareBcProduct(local);
-    renderBcResult();
+    renderBcResult({ openFix: false });
     setBcStage('result');
-    setBcStatus('Товар найден. Выберите порцию и добавьте в приём пищи.', 'good');
+    setBcStatus('Товар найден в вашей базе. Проверьте порцию и добавьте в приём пищи.', 'good');
     return;
   }
 
-  const remote = await fetchWorldProduct(code);
+  const remote = await fetchWorldProduct(code, (step, total) => {
+    if (token !== bc.seq) return;
+    setText('#bc-status', `Ищу товар… шаг ${step} из ${total}`);
+  });
   if (token !== bc.seq) return;
-  if (remote) {
+  renderBcTrace();
+
+  if (remote && remote.hasNutrition && remote.exact) {
     prepareBcProduct(remote);
     renderBcResult();
     setBcStage('result');
-    setBcStatus('Товар найден. Выберите порцию и добавьте в приём пищи.', 'good');
+    setBcStatus('Товар найден по штрихкоду. Проверьте название и цифры на упаковке.', 'good');
     return;
   }
+  if (remote && remote.candidates && remote.candidates.length) {
+    openBcChoice(remote);
+    return;
+  }
+  openBcNewCard(remote);
+}
 
-  $('#bc-code-new').textContent = code;
-  $('#bc-new-name').value = ''; $('#bc-new-brand').value = '';
-  $('#bc-new-kcal').value = 0; $('#bc-new-p').value = 0;
-  $('#bc-new-f').value = 0; $('#bc-new-c').value = 0;
-  $('#bc-new-piece').value = 0;
-  $('#bc-new-unit').value = 'g'; $('#bc-new-amount').value = 100;
+/* ---- Уточнение товара: пользователь выбирает точную позицию ---- */
+function openBcChoice(remote) {
+  bc.candidates = remote.candidates || [];
+  bc.query = remote.query || [remote.brand, remote.name].filter(Boolean).join(' ');
+  bc.expectedPack = num0(remote.pack);
+  setText('#bc-choice-code', bc.code);
+  setVal('#bc-choice-input', bc.query);
+  setText('#bc-choice-title', remote.name ? 'Найдено несколько похожих товаров' : 'Уточните товар');
+  renderBcCandidates('#bc-choice-list', bc.candidates, 'bc-pick-choice');
+  setText('#bc-choice-hint', bc.candidates.length
+    ? 'Российские позиции показаны первыми. Нажмите на точный товар — его данные запомнятся под этим штрихкодом.'
+    : 'Введите название с упаковки, включая разновидность и массу.');
+  setBcStage('choice');
+  setBcStatus('Точного совпадения по коду нет. Выберите товар вручную — чужие КБЖУ мы не подставляем.', 'warn');
+}
+
+function renderBcCandidates(listSel, items, attr) {
+  const list = $(listSel);
+  if (!list) return;
+  if (!items.length) {
+    list.innerHTML = '<li class="bc-find__empty">Ничего не найдено. Уточните название или заполните карточку вручную.</li>';
+    return;
+  }
+  list.innerHTML = items.map((it, i) => {
+    const pack = num0(it.pack) > 0 ? `, ${trimNum(it.pack)} ${it.unit === 'ml' ? 'мл' : 'г'}` : '';
+    const kcal = it.hasNutrition ? `${Math.round(num0(it.kcal))} ккал / 100 ${it.unit === 'ml' ? 'мл' : 'г'}` : 'КБЖУ нет';
+    return `<li>
+      <button class="bc-find__item" type="button" data-${attr}="${i}">
+        <span class="bc-find__name">${esc(it.fullName || it.name)}${pack ? `<em>${esc(pack)}</em>` : ''}${it.ru ? '<em class="bc-find__ru">РФ</em>' : ''}</span>
+        <span class="bc-find__kcal">${kcal}</span>
+      </button>
+    </li>`;
+  }).join('');
+}
+
+async function bcChoiceSearch(event) {
+  if (event) event.preventDefault();
+  const query = getVal('#bc-choice-input').trim();
+  if (query.length < 3) { setText('#bc-choice-hint', 'Введите минимум 3 символа.'); return; }
+  if (typeof BarcodeSources === 'undefined') { setText('#bc-choice-hint', 'Модуль поиска не подключён.'); return; }
+  const list = $('#bc-choice-list');
+  if (list) list.innerHTML = '<li class="bc-find__empty">Ищу по базам…</li>';
+  setText('#bc-choice-hint', 'Опрашиваю базы товаров…');
+  try {
+    const found = await BarcodeSources.search(query, { limit: 14, expectPack: num0(bc.expectedPack) });
+    bc.candidates = found;
+    renderBcCandidates('#bc-choice-list', found, 'bc-pick-choice');
+    setText('#bc-choice-hint', found.length
+      ? `Найдено позиций: ${found.length}. Нажмите на точный товар.`
+      : 'Ничего не найдено. Заполните карточку вручную — товар сохранится в вашу базу.');
+  } catch (e) {
+    if (list) list.innerHTML = `<li class="bc-find__empty">${esc(e.message || 'Базы недоступны')}</li>`;
+    setText('#bc-choice-hint', 'Проверьте соединение или заполните карточку вручную.');
+  }
+}
+
+function bcPickCandidate(index) {
+  const it = (bc.candidates || [])[index];
+  if (!it) return;
+  if (!it.hasNutrition) {
+    openBcNewCard(it);
+    showToast('У этой позиции нет КБЖУ — впишите цифры с упаковки');
+    return;
+  }
+  bc.confirmed = true;
+  bc.trusted = true;
+  prepareBcProduct(it);
+  renderBcResult();
+  const fix = $('#bc-fix');
+  if (fix) fix.open = true;
+  setBcStage('result');
+  setBcStatus('Товар выбран. Сверьте цифры с упаковкой — они запомнятся под этим штрихкодом.', 'good');
+}
+
+/* ---- Карточка нового товара ---- */
+function openBcNewCard(partial) {
+  setText('#bc-code-new', bc.code);
+  const name = partial ? (partial.fullName || partial.name || '') : '';
+  setVal('#bc-new-name', name);
+  setVal('#bc-new-brand', partial && partial.brand ? partial.brand : '');
+  setVal('#bc-new-kcal', partial && num0(partial.kcal) > 0 ? Math.round(num0(partial.kcal)) : 0);
+  setVal('#bc-new-p', partial ? num0(partial.p) : 0);
+  setVal('#bc-new-f', partial ? num0(partial.f) : 0);
+  setVal('#bc-new-c', partial ? num0(partial.c) : 0);
+  setVal('#bc-new-pack', partial ? num0(partial.pack) : 0);
+  setVal('#bc-new-piece', partial ? num0(partial.piece) : 0);
+  setVal('#bc-new-unit', partial && partial.unit === 'ml' ? 'ml' : 'g');
+  setVal('#bc-new-amount', partial && num0(partial.piece) > 0 ? 1 : partial && partial.unit === 'ml' ? 250 : 100);
+  setVal('#bc-find-input', partial ? (partial.name || '') : '');
+  const list = $('#bc-find-list');
+  if (list) list.innerHTML = '';
+  setText('#bc-find-hint', 'Сначала ищем среди товаров, продающихся в России, затем по всему миру.');
+  bc.candidates = [];
   setBcStage('new');
   setBcStatus(NOT_FOUND_TEXT, 'warn');
 }
 
-function renderBcResult() {
+function renderBcTrace() {
+  const box = $('#bc-trace');
+  if (!box) return;
+  if (typeof BarcodeSources === 'undefined' || !BarcodeSources.isDebug()) { box.hidden = true; return; }
+  const rows = BarcodeSources.lastTrace();
+  box.hidden = rows.length === 0;
+  box.innerHTML = `<span class="bc-trace__title">Источники по коду ${esc(bc.code)}</span>`
+    + rows.map((r) => `<span class="bc-trace__row" data-state="${esc(r.status)}">
+        <b>${esc(r.source)}</b><i>${esc(r.status)}</i><u>${r.ms} мс${r.note ? ' · ' + esc(r.note) : ''}</u>
+      </span>`).join('');
+}
+
+async function bcFindByName(event) {
+  if (event) event.preventDefault();
+  const query = getVal('#bc-find-input').trim();
+  const list = $('#bc-find-list');
+  if (query.length < 3) { setText('#bc-find-hint', 'Введите минимум 3 символа.'); return; }
+  if (typeof BarcodeSources === 'undefined') { setText('#bc-find-hint', 'Модуль поиска не подключён.'); return; }
+  if (list) list.innerHTML = '<li class="bc-find__empty">Ищу по базам…</li>';
+  setText('#bc-find-hint', 'Опрашиваю базы товаров…');
+  try {
+    const found = await BarcodeSources.search(query, { limit: 14, expectPack: num0(getVal('#bc-new-pack')) });
+    bc.candidates = found;
+    renderBcCandidates('#bc-find-list', found, 'bc-pick');
+    setText('#bc-find-hint', found.length
+      ? `Найдено позиций: ${found.length}. Нажмите на подходящую — данные подставятся в карточку.`
+      : 'Ничего не найдено. Заполните карточку вручную — товар сохранится в вашу базу.');
+  } catch (e) {
+    if (list) list.innerHTML = `<li class="bc-find__empty">${esc(e.message || 'Базы недоступны')}</li>`;
+    setText('#bc-find-hint', 'Проверьте соединение или заполните карточку вручную.');
+  }
+}
+
+function applyBcCandidate(item) {
+  setVal('#bc-new-name', item.fullName || item.name || '');
+  setVal('#bc-new-brand', item.brand || '');
+  setVal('#bc-new-kcal', Math.round(num0(item.kcal)));
+  setVal('#bc-new-p', num0(item.p));
+  setVal('#bc-new-f', num0(item.f));
+  setVal('#bc-new-c', num0(item.c));
+  setVal('#bc-new-pack', num0(item.pack));
+  setVal('#bc-new-piece', num0(item.piece));
+  setVal('#bc-new-unit', item.unit === 'ml' ? 'ml' : 'g');
+  setVal('#bc-new-amount', num0(item.piece) > 0 ? 1 : item.unit === 'ml' ? 250 : 100);
+  showToast(item.hasNutrition ? 'Данные подставлены — сверьте с упаковкой и сохраните' : 'Название подставлено, КБЖУ впишите с упаковки');
+  const el = $('#bc-new-name');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ---- Результат: показ и живое редактирование ---- */
+function prepareBcProduct(product) {
+  bc.product = {
+    id: product.id || null,
+    code: bc.code,
+    name: product.name || '',
+    fullName: product.fullName || product.name || '',
+    brand: product.brand || '',
+    kcal: num0(product.kcal), p: num0(product.p), f: num0(product.f), c: num0(product.c),
+    piece: num0(product.piece), pack: num0(product.pack),
+    cat: product.cat || (product.unit === 'ml' ? 'drinks' : 'barcode'),
+    unit: product.unit === 'ml' ? 'ml' : 'g',
+  };
+  bc.unit = defaultUnit(bc.product);
+  bc.amount = defaultAmount(bc.unit);
+}
+
+/* Значение поля не перезаписываем, если в нём сейчас стоит курсор */
+const setValSafe = (sel, v) => {
+  const el = $(sel);
+  if (!el || el === document.activeElement) return;
+  el.value = v;
+};
+
+function renderBcResult(opts = {}) {
   const p = bc.product;
   if (!p) return;
-  $('#bc-code').textContent = bc.code;
-  $('#bc-name').textContent = p.name;
-  const brand = $('#bc-brand');
-  brand.textContent = p.brand || '';
-  brand.hidden = !p.brand;
-  $('#bc-kcal100').textContent = Math.round(num0(p.kcal));
-  $('#bc-p100').textContent = trimNum(p.p);
-  $('#bc-f100').textContent = trimNum(p.f);
-  $('#bc-c100').textContent = trimNum(p.c);
 
-  const pc = canPieces(p), ml = isDrink(p);
+  setText('#bc-code', bc.code);
+  setText('#bc-name', p.fullName || p.name || 'Товар');
+  const brand = $('#bc-brand');
+  if (brand) { brand.textContent = p.brand || ''; brand.hidden = !p.brand; }
+
+  const warn = $('#bc-warn');
+  if (warn) {
+    const noNutrition = !(p.kcal > 0 || p.p > 0 || p.f > 0 || p.c > 0);
+    warn.hidden = bc.trusted && !noNutrition;
+    warn.textContent = noNutrition
+      ? 'КБЖУ не найдены. Впишите цифры с упаковки в блоке «Проверить и исправить данные».'
+      : 'Данные взяты из открытой базы и могут отличаться от вашей упаковки — сверьте и исправьте.';
+  }
+
+  setText('#bc-kcal100', String(Math.round(num0(p.kcal))));
+  setText('#bc-p100', trimNum(p.p));
+  setText('#bc-f100', trimNum(p.f));
+  setText('#bc-c100', trimNum(p.c));
+
+  setValSafe('#bc-fix-name', p.fullName || p.name || '');
+  setValSafe('#bc-fix-brand', p.brand || '');
+  setValSafe('#bc-fix-kcal', Math.round(num0(p.kcal)));
+  setValSafe('#bc-fix-p', num0(p.p));
+  setValSafe('#bc-fix-f', num0(p.f));
+  setValSafe('#bc-fix-c', num0(p.c));
+  setValSafe('#bc-fix-pack', num0(p.pack));
+  setValSafe('#bc-fix-piece', num0(p.piece));
+
+  /* Раскрытость блока меняем только по явной команде, а не при каждом вводе */
+  const fix = $('#bc-fix');
+  if (fix && typeof opts.openFix === 'boolean') fix.open = opts.openFix;
+
+  const pc = canPieces(p);
+  const ml = isDrink(p);
   const units = $('#bc-units');
   if (units) {
     $$('.bc__unit-btn', units).forEach((btn) => {
@@ -1295,26 +1528,47 @@ function renderBcResult() {
   const packEl = $('#bc-pack');
   if (packEl) {
     const parts = [];
-    if (pc) parts.push(`1 шт ≈ ${trimNum(p.piece)} г`);
     if (num0(p.pack) > 0) {
       const pcs = pc ? Math.round(num0(p.pack) / num0(p.piece)) : 0;
-      parts.push(`упаковка ${trimNum(p.pack)} г${pcs > 1 ? ` ≈ ${pcs} шт` : ''}`);
+      parts.push(`упаковка ${trimNum(p.pack)} ${p.unit === 'ml' ? 'мл' : 'г'}${pcs > 1 ? ` ≈ ${pcs} шт` : ''}`);
     }
+    if (pc) parts.push(`1 шт ≈ ${trimNum(p.piece)} г`);
     packEl.textContent = parts.join(' · ');
     packEl.hidden = parts.length === 0;
   }
 
   const input = $('#bc-amount');
-  input.step = bc.unit === 'pc' ? '0.5' : '1';
-  input.min = bc.unit === 'pc' ? '0.5' : '1';
-  input.max = bc.unit === 'pc' ? '200' : '5000';
-  input.value = bc.amount;
-  $('#bc-unit').textContent = unitLabel(bc.unit);
-  $('#bc-add').textContent = `Добавить в ${MEAL_LABELS[bc.meal] || 'приём'}`;
+  if (input) {
+    input.step = bc.unit === 'pc' ? '0.5' : '1';
+    input.min = bc.unit === 'pc' ? '0.5' : '1';
+    input.max = bc.unit === 'pc' ? '200' : '5000';
+    setValSafe('#bc-amount', bc.amount);
+  }
+  setText('#bc-unit', unitLabel(bc.unit));
+  setText('#bc-add', `Добавить в ${MEAL_LABELS[bc.meal] || 'приём'}`);
   renderBcTotal();
 }
+
+function bcSyncFix() {
+  const p = bc.product;
+  if (!p) return;
+  p.fullName = getVal('#bc-fix-name').trim() || p.name;
+  p.name = p.fullName;
+  p.brand = getVal('#bc-fix-brand').trim();
+  p.kcal = clamp(num0(getVal('#bc-fix-kcal')), 0, 900);
+  p.p = clamp(num0(getVal('#bc-fix-p')), 0, 100);
+  p.f = clamp(num0(getVal('#bc-fix-f')), 0, 100);
+  p.c = clamp(num0(getVal('#bc-fix-c')), 0, 100);
+  p.pack = clamp(num0(getVal('#bc-fix-pack')), 0, 20000);
+  p.piece = clamp(num0(getVal('#bc-fix-piece')), 0, 2000);
+  bc.confirmed = true;
+  bc.trusted = true;
+  if (bc.unit === 'pc' && !canPieces(p)) bc.unit = isDrink(p) ? 'ml' : 'g';
+  renderBcResult();
+}
+
 function readBcAmount() {
-  const raw = num0($('#bc-amount').value) || bc.amount;
+  const raw = num0(getVal('#bc-amount')) || bc.amount;
   return bc.unit === 'pc' ? clamp(Math.round(raw * 2) / 2, 0.5, 200) : clamp(Math.round(raw), 1, 5000);
 }
 function renderBcTotal() {
@@ -1323,7 +1577,7 @@ function renderBcTotal() {
   bc.amount = readBcAmount();
   const m = calcPortion(p, bc.amount, bc.unit);
   const grams = bc.unit === 'pc' ? ` · ${Math.round(toGrams(p, bc.amount, 'pc'))} г` : '';
-  $('#bc-total').textContent = `${m.kcal} ккал${grams} · Б ${trimNum(m.p)} · Ж ${trimNum(m.f)} · У ${trimNum(m.c)}`;
+  setText('#bc-total', `${m.kcal} ккал${grams} · Б ${trimNum(m.p)} · Ж ${trimNum(m.f)} · У ${trimNum(m.c)}`);
 }
 function setBcUnit(next) {
   const p = bc.product;
@@ -1341,25 +1595,48 @@ function stepBc(dir) {
   const step = bc.unit === 'pc' ? 1 : (bc.amount >= 200 ? 50 : 10);
   const next = bc.amount + dir * step;
   bc.amount = bc.unit === 'pc' ? clamp(Math.round(next * 2) / 2, 0.5, 200) : clamp(Math.round(next), 1, 5000);
-  $('#bc-amount').value = bc.amount;
+  setVal('#bc-amount', bc.amount);
   renderBcTotal();
 }
+function bcWrongProduct() {
+  const p = bc.product;
+  openBcChoice({
+    name: p ? p.name : '',
+    brand: p ? p.brand : '',
+    pack: p ? p.pack : 0,
+    query: p ? (p.fullName || p.name) : '',
+    candidates: [],
+  });
+  bcChoiceSearch();
+}
+
 function bcAdd() {
   const p = bc.product;
   if (!p) return;
+  if (!(p.kcal > 0 || p.p > 0 || p.f > 0 || p.c > 0)) {
+    const fix = $('#bc-fix');
+    if (fix) fix.open = true;
+    setBcStatus('Впишите КБЖУ с упаковки — без них товар нельзя посчитать.', 'bad');
+    const el = $('#bc-fix-kcal');
+    if (el) el.focus();
+    return;
+  }
   const amount = readBcAmount();
   const unit = bc.unit;
   const piece = num0(p.piece);
 
-  /* Найденный товар всегда остаётся в базе NutriFlow */
-  if (!isShippedCode(bc.code)) {
-    saveBcEntry({
-      code: bc.code, name: p.name, brand: p.brand || '',
-      kcal: num0(p.kcal), p: num0(p.p), f: num0(p.f), c: num0(p.c),
-      unit: isDrink(p) ? 'ml' : 'g', piece, pack: num0(p.pack), ts: Date.now(),
-    });
-  }
-  let id = p.id && resolveProduct(p.id) ? p.id : 'bc-' + bc.code;
+  /* Товар всегда запоминается под штрихкодом с проверенными цифрами */
+  saveBcEntry({
+    code: bc.code,
+    name: p.fullName || p.name,
+    fullName: p.fullName || p.name,
+    brand: p.brand || '',
+    kcal: num0(p.kcal), p: num0(p.p), f: num0(p.f), c: num0(p.c),
+    unit: isDrink(p) ? 'ml' : 'g', piece, pack: num0(p.pack),
+    own: true, ts: Date.now(),
+  });
+
+  const id = 'bc-' + bc.code;
   const product = resolveProduct(id);
   const bucket = dayEntries()[bc.meal];
   if (product) {
@@ -1369,49 +1646,64 @@ function bcAdd() {
     pushHistory(id, amount, unit, piece);
   } else {
     bucket.push({
-      custom: { name: p.name, kcal100: num0(p.kcal), p100: num0(p.p), f100: num0(p.f), c100: num0(p.c), piece },
+      custom: { name: p.fullName || p.name, kcal100: num0(p.kcal), p100: num0(p.p), f100: num0(p.f), c100: num0(p.c), piece },
       weight: amount, unit,
     });
   }
-  persistDiary(); rerenderAll();
+  persistDiary();
+  rerenderAll();
   const m = calcPortion(product || p, amount, unit);
-  showToast(`${p.name} → ${MEAL_LABELS[bc.meal]}: ${m.kcal} ккал`);
+  showToast(`${p.fullName || p.name} → ${MEAL_LABELS[bc.meal]}: ${m.kcal} ккал`);
   closeBarcode();
 }
+
 function bcNewAdd() {
-  const name = $('#bc-new-name').value.trim();
+  const name = getVal('#bc-new-name').trim();
   if (!name) {
     setBcStatus('Введите название товара — без него карточку не сохранить.', 'bad');
-    $('#bc-new-name').focus();
+    const el = $('#bc-new-name');
+    if (el) el.focus();
     return;
   }
-  const unit = $('#bc-new-unit').value === 'ml' ? 'ml' : 'g';
-  const piece = clamp(num0($('#bc-new-piece').value), 0, 2000);
+  const kcal = clamp(num0(getVal('#bc-new-kcal')), 0, 900);
+  const p = clamp(num0(getVal('#bc-new-p')), 0, 100);
+  const f = clamp(num0(getVal('#bc-new-f')), 0, 100);
+  const c = clamp(num0(getVal('#bc-new-c')), 0, 100);
+  if (!(kcal > 0 || p > 0 || f > 0 || c > 0)) {
+    setBcStatus('Впишите хотя бы калорийность с упаковки.', 'bad');
+    const el = $('#bc-new-kcal');
+    if (el) el.focus();
+    return;
+  }
+  const unit = getVal('#bc-new-unit') === 'ml' ? 'ml' : 'g';
+  const piece = clamp(num0(getVal('#bc-new-piece')), 0, 2000);
+  const pack = clamp(num0(getVal('#bc-new-pack')), 0, 20000);
   saveBcEntry({
-    code: bc.code, name, brand: $('#bc-new-brand').value.trim(),
-    kcal: num0($('#bc-new-kcal').value), p: num0($('#bc-new-p').value),
-    f: num0($('#bc-new-f').value), c: num0($('#bc-new-c').value),
-    unit, piece, pack: 0, ts: Date.now(),
+    code: bc.code, name, fullName: name, brand: getVal('#bc-new-brand').trim(),
+    kcal, p, f, c, unit, piece, pack, own: true, ts: Date.now(),
   });
-  const amount = clamp(Math.round(num0($('#bc-new-amount').value) || 100), 1, 5000);
+  const amount = clamp(Math.round(num0(getVal('#bc-new-amount')) || 100), 1, 5000);
   const id = 'bc-' + bc.code;
   const product = resolveProduct(id);
   const item = { id, weight: amount, unit };
   if (piece > 0) item.piece = piece;
   dayEntries()[bc.meal].push(item);
   pushHistory(id, amount, unit, piece);
-  persistDiary(); rerenderAll();
+  persistDiary();
+  rerenderAll();
   const m = product ? calcPortion(product, amount, unit) : { kcal: 0 };
   showToast(`${name} сохранён и добавлен: ${m.kcal} ккал`);
   closeBarcode();
 }
+
 function renderBcSaved() {
-  const wrap = $('#bc-saved-wrap'), list = $('#bc-saved');
+  const wrap = $('#bc-saved-wrap');
+  const list = $('#bc-saved');
   if (!wrap || !list) return;
   const items = state.barcodes || [];
   wrap.hidden = items.length === 0;
   list.innerHTML = items.slice(0, 12).map((b) => `<li class="bc__chip">
-    <button type="button" data-bc-open="${esc(b.code)}" title="${esc(b.code)}">${esc(b.name)}</button>
+    <button type="button" data-bc-open="${esc(b.code)}" title="${esc(b.code)}">${esc(b.fullName || b.name)}</button>
     <button type="button" class="bc__chip-x" data-bc-del="${esc(b.code)}" aria-label="Удалить код ${esc(b.code)}">×</button>
   </li>`).join('');
 }
@@ -1436,7 +1728,8 @@ function submitAuth(event) {
   const errorBox = $('#auth-error');
   errorBox.hidden = true;
   const fail = (t) => { errorBox.textContent = t; errorBox.hidden = false; };
-  const email = $('#auth-email').value.trim(), password = $('#auth-pass').value;
+  const email = $('#auth-email').value.trim();
+  const password = $('#auth-pass').value;
   if (!email || !password) return fail('Заполните почту и пароль.');
   if (authMode === 'register') {
     const name = $('#auth-name').value.trim();
@@ -1449,44 +1742,50 @@ function submitAuth(event) {
     if (res.error) return fail(res.error);
   }
   $('#auth-pass').value = '';
-  switchScope(); renderProfile(); rerenderAll();
+  switchScope();
+  renderProfile();
+  rerenderAll();
 }
 const GOAL_LABELS = { lose: 'Похудение', maintain: 'Поддержание веса', gain: 'Набор массы' };
 const ACTIVITY_LABELS = { sedentary: 'Сидячий', light: 'Немного активный', active: 'Часто активный', training: 'Регулярные тренировки' };
 function renderProfileSummary() {
-  const card = $('#profile-summary'), empty = $('#profile-empty');
+  const card = $('#profile-summary');
+  const empty = $('#profile-empty');
   if (!card || !empty) return;
   const p = state.profile;
   if (!p) { card.hidden = true; empty.hidden = false; return; }
-  empty.hidden = true; card.hidden = false;
+  empty.hidden = true;
+  card.hidden = false;
   card.dataset.goal = p.goal || 'lose';
   const plan = computePlanData({ ...p, pace: p.paceKgWeek });
-  const set = (id, text) => { const el = $(`#${id}`); if (el) el.textContent = text; };
-  set('summary-goal', GOAL_LABELS[p.goal] || 'Цель');
-  set('summary-height', `${trimNum(p.heightCm)} см`);
-  set('summary-weight', `${trimNum(p.weightKg)} кг`);
-  set('summary-target', `${trimNum(p.targetKg)} кг`);
-  set('summary-pace', `${trimNum(p.paceKgWeek)} кг/нед`);
-  set('summary-pace-sub', paceCaption(p.paceKgWeek));
-  set('summary-activity', ACTIVITY_LABELS[p.activity] || '—');
-  set('summary-date', plan.days > 0 ? fmtFullDate(plan.finish) : 'Уже достигнута');
-  set('summary-kcal', `${plan.targetKcal.toLocaleString('ru-RU')} ккал/день`);
-  set('summary-water', `${trimNum(plan.waterL)} л воды`);
-  set('summary-note', `Калории: ${plan.targetKcal.toLocaleString('ru-RU')} ккал/день · Вода: ${trimNum(plan.waterL)} л/день`);
+  setText('#summary-goal', GOAL_LABELS[p.goal] || 'Цель');
+  setText('#summary-height', `${trimNum(p.heightCm)} см`);
+  setText('#summary-weight', `${trimNum(p.weightKg)} кг`);
+  setText('#summary-target', `${trimNum(p.targetKg)} кг`);
+  setText('#summary-pace', `${trimNum(p.paceKgWeek)} кг/нед`);
+  setText('#summary-pace-sub', paceCaption(p.paceKgWeek));
+  setText('#summary-activity', ACTIVITY_LABELS[p.activity] || '—');
+  setText('#summary-date', plan.days > 0 ? fmtFullDate(plan.finish) : 'Уже достигнута');
+  setText('#summary-kcal', `${plan.targetKcal.toLocaleString('ru-RU')} ккал/день`);
+  setText('#summary-water', `${trimNum(plan.waterL)} л воды`);
+  setText('#summary-note', `Калории: ${plan.targetKcal.toLocaleString('ru-RU')} ккал/день · Вода: ${trimNum(plan.waterL)} л/день`);
 }
 function renderProfile() {
-  const authView = $('#auth-view'), profileView = $('#profile-view');
+  const authView = $('#auth-view');
+  const profileView = $('#profile-view');
   if (!authView || !profileView) return;
   const user = currentUser();
   authView.hidden = Boolean(user);
   profileView.hidden = !user;
   if (user) {
-    $('#user-name').textContent = user.name;
-    $('#user-email').textContent = user.email;
+    setText('#user-name', user.name);
+    setText('#user-email', user.email);
     renderProfileSummary();
   } else {
     setAuthMode('login');
-    $('#auth-name').value = ''; $('#auth-email').value = ''; $('#auth-pass').value = '';
+    setVal('#auth-name', '');
+    setVal('#auth-email', '');
+    setVal('#auth-pass', '');
   }
 }
 function initAuth() {
@@ -1496,7 +1795,10 @@ function initAuth() {
   $('#auth-submit').addEventListener('click', submitAuth);
   $('#auth-form')?.addEventListener('submit', submitAuth);
   $('#logout-btn').addEventListener('click', () => {
-    clearSession(); switchScope(); renderProfile(); rerenderAll();
+    clearSession();
+    switchScope();
+    renderProfile();
+    rerenderAll();
   });
   $('#goal-btn').addEventListener('click', wizardOpen);
   $('#summary-setup')?.addEventListener('click', wizardOpen);
@@ -1515,7 +1817,10 @@ const KCAL_PER_KG = 7700;
 const ACTIVITY_FACTORS = { sedentary: 1.2, light: 1.375, active: 1.55, training: 1.725 };
 const WATER_ACTIVITY = { sedentary: 0, light: 0.15, active: 0.35, training: 0.5 };
 const MONTHS_SHORT = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
-const wizardData = { goal: null, sex: null, birth: { day: 1, month: 1, year: 1999 }, height: 170, weight: 70, target: 65, activity: null, pace: 0.5 };
+const wizardData = {
+  goal: null, sex: null, birth: { day: 1, month: 1, year: 1999 },
+  height: 170, weight: 70, target: 65, activity: null, pace: 0.5,
+};
 let wizardStep = 1, wheelsReady = false, lastPlan = null;
 const wheels = new Map();
 const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
@@ -1540,13 +1845,14 @@ function computePlanData(d) {
   const pace = d.pace || 0.5;
   const days = direction === 'keep' ? 0 : Math.round((Math.abs(diff) / pace) * 7);
   const start = new Date();
-  const finish = new Date(start); finish.setDate(finish.getDate() + days);
+  const finish = new Date(start);
+  finish.setDate(finish.getDate() + days);
   const delta = Math.round((pace * KCAL_PER_KG) / 7 / 10) * 10;
   const targetKcal = Math.max(0, Math.round((tdee + (direction === 'gain' ? delta : direction === 'loss' ? -delta : 0)) / 10) * 10);
   const waterL = +((d.weightKg * 0.03) + (WATER_ACTIVITY[d.activity] ?? 0)).toFixed(1);
   return { direction, tdee, pace, days, start, finish, delta, targetKcal, waterL };
 }
-const paceCaption = (v) => v <= 0.2 ? 'Надежно' : v <= 0.4 ? 'Умеренно' : v <= 0.6 ? 'Сбалансировано' : v <= 0.8 ? 'Заметно' : 'Быстро';
+const paceCaption = (v) => (v <= 0.2 ? 'Надежно' : v <= 0.4 ? 'Умеренно' : v <= 0.6 ? 'Сбалансировано' : v <= 0.8 ? 'Заметно' : 'Быстро');
 
 function createWheel(host, values, initial, format) {
   const viewport = document.createElement('div');
@@ -1561,7 +1867,8 @@ function createWheel(host, values, initial, format) {
   viewport.append(pad());
   values.forEach((value, i) => {
     const item = document.createElement('button');
-    item.type = 'button'; item.className = 'wheel__item';
+    item.type = 'button';
+    item.className = 'wheel__item';
     item.style.height = `${WHEEL_ITEM_H}px`;
     item.dataset.index = String(i);
     item.textContent = format ? format(value) : String(value);
@@ -1570,9 +1877,11 @@ function createWheel(host, values, initial, format) {
   });
   viewport.append(pad());
   host.append(viewport);
+
   const wheel = { host, viewport, values, index: 0 };
   wheels.set(host.dataset.wheel, wheel);
   const isVisible = () => viewport.offsetParent !== null;
+
   function scrollToIndex(i, smooth = true) {
     wheel.index = clamp(i, 0, values.length - 1);
     viewport.scrollTo({ top: wheel.index * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
@@ -1582,10 +1891,11 @@ function createWheel(host, values, initial, format) {
     const center = viewport.scrollTop / WHEEL_ITEM_H;
     viewport.querySelectorAll('.wheel__item').forEach((el) => {
       const d = Math.abs(Number(el.dataset.index) - center);
-      el.classList.toggle('is-active', d < .5);
-      el.style.opacity = d < .5 ? '1' : d < 1.5 ? '.55' : '.3';
+      el.classList.toggle('is-active', d < 0.5);
+      el.style.opacity = d < 0.5 ? '1' : d < 1.5 ? '.55' : '.3';
     });
   }
+
   let snapTimer = 0;
   viewport.addEventListener('scroll', () => {
     if (!isVisible()) return;
@@ -1596,6 +1906,7 @@ function createWheel(host, values, initial, format) {
       scrollToIndex(Math.round(viewport.scrollTop / WHEEL_ITEM_H));
     }, 120);
   }, { passive: true });
+
   let wheelAcc = 0, wheelLock = 0;
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -1609,10 +1920,12 @@ function createWheel(host, values, initial, format) {
     wheelAcc = 0;
     scrollToIndex(wheel.index + dir);
   }, { passive: false });
+
   viewport.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); scrollToIndex(wheel.index + 1); }
     if (e.key === 'ArrowUp') { e.preventDefault(); scrollToIndex(wheel.index - 1); }
   });
+
   wheel.set = (v, smooth = false) => { const i = values.indexOf(v); scrollToIndex(i === -1 ? 0 : i, smooth); };
   wheel.get = () => values[wheel.index];
   wheel.read = () => {
@@ -1638,7 +1951,11 @@ function ensureWheels() {
 function captureStepWheels(step) {
   if (!wheelsReady) return;
   if (step === 3) {
-    wizardData.birth = { day: wheels.get('b-day').read(), month: wheels.get('b-month').read(), year: wheels.get('b-year').read() };
+    wizardData.birth = {
+      day: wheels.get('b-day').read(),
+      month: wheels.get('b-month').read(),
+      year: wheels.get('b-year').read(),
+    };
   } else if (step === 4) {
     wizardData.height = wheels.get('h-int').read() + wheels.get('h-dec').read() / 10;
   } else if (step === 5) {
@@ -1695,7 +2012,8 @@ function wizardOpen() {
   if (!root) return;
   const p = state.profile;
   if (p) {
-    wizardData.goal = p.goal ?? null; wizardData.sex = p.sex ?? null;
+    wizardData.goal = p.goal ?? null;
+    wizardData.sex = p.sex ?? null;
     if (p.birth) wizardData.birth = { ...p.birth };
     if (typeof p.heightCm === 'number') wizardData.height = p.heightCm;
     if (typeof p.weightKg === 'number') wizardData.weight = p.weightKg;
@@ -1728,11 +2046,11 @@ function pushWeightRecord(kg) {
   saveJSON(dbKey(state.uid, 'weight'), state.weight);
 }
 function updatePaceUI() {
-  const slider = $('#pace-slider'), value = $('#pace-value'), caption = $('#pace-caption');
+  const slider = $('#pace-slider');
   if (!slider) return;
   const v = Number(slider.value);
-  if (value) value.textContent = `${v.toFixed(1).replace('.', ',')} кг/неделя`;
-  if (caption) caption.textContent = paceCaption(v);
+  setText('#pace-value', `${v.toFixed(1).replace('.', ',')} кг/неделя`);
+  setText('#pace-caption', paceCaption(v));
   const percent = ((v - 0.1) / 0.9) * 100;
   slider.style.background = `linear-gradient(90deg, #0a4b2c ${percent}%, #b9cdc4 ${percent}%)`;
 }
@@ -1757,16 +2075,19 @@ function renderWeightChart(plan) {
   const weeks = Math.max(1, Math.round(plan.days / 7));
   const series = buildWeightSeries(plan.current, plan.target, plan.pace, weeks);
   const W = 600, H = 300, AX = 36, AY = 264, X0 = 50, X1 = 556, YT = 34, YB = 246;
-  const wMax = Math.max(...series) + 0.6, wMin = Math.min(...series) - 0.6;
+  const wMax = Math.max(...series) + 0.6;
+  const wMin = Math.min(...series) - 0.6;
   const span = Math.max(0.5, wMax - wMin);
   const xOf = (i) => X0 + (i / (series.length - 1)) * (X1 - X0);
   const yOf = (w) => YT + ((wMax - w) / span) * (YB - YT);
   const stride = Math.max(1, Math.ceil(series.length / 26));
   const nodes = series.map((w, i) => ({ x: xOf(i), y: yOf(w) })).filter((_, i) => i % stride === 0 || i === series.length - 1);
   const path = nodes.map((n, i) => `${i ? 'L' : 'M'}${n.x.toFixed(1)} ${n.y.toFixed(1)}`).join(' ');
-  const last = nodes[nodes.length - 1], prev = nodes[nodes.length - 2] || last;
+  const last = nodes[nodes.length - 1];
+  const prev = nodes[nodes.length - 2] || last;
   const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
-  const tipX = last.x + 16 * Math.cos(ang), tipY = last.y + 16 * Math.sin(ang);
+  const tipX = last.x + 16 * Math.cos(ang);
+  const tipY = last.y + 16 * Math.sin(ang);
   const arrow = `${tipX.toFixed(1)},${tipY.toFixed(1)} ${(tipX + 13 * Math.cos(ang + 2.6)).toFixed(1)},${(tipY + 13 * Math.sin(ang + 2.6)).toFixed(1)} ${(tipX + 13 * Math.cos(ang - 2.6)).toFixed(1)},${(tipY + 13 * Math.sin(ang - 2.6)).toFixed(1)}`;
   chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Прогноз изменения веса по неделям">
     <defs><filter id="wchart-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.22"/></filter></defs>
@@ -1780,7 +2101,10 @@ function buildMonths(start, finish) {
   const list = [];
   const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
   const end = new Date(finish.getFullYear(), finish.getMonth(), 1);
-  while (cursor <= end) { list.push(MONTHS_SHORT[cursor.getMonth()]); cursor.setMonth(cursor.getMonth() + 1); }
+  while (cursor <= end) {
+    list.push(MONTHS_SHORT[cursor.getMonth()]);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
   if (list.length === 1) list.push(MONTHS_SHORT[cursor.getMonth() % 12]);
   if (list.length > 8) {
     const step = Math.ceil(list.length / 8);
@@ -1794,16 +2118,12 @@ function renderResult() {
   const plan = computePlan();
   lastPlan = plan;
   const { target, direction, days, finish, delta, targetKcal, waterL } = plan;
-  const weightEl = $('#wizard-result-weight');
-  if (weightEl) weightEl.textContent = `${trimNum(target)} кг`;
-  const planEl = $('#wizard-result-date');
-  if (planEl) planEl.textContent = days > 0 ? `Вы достигнете своей цели к ${fmtFullDate(finish)}` : 'Цель достигнута — просто держим вес!';
-  const kcalEl = $('#wizard-result-kcal');
-  if (kcalEl) kcalEl.textContent = direction === 'keep'
+  setText('#wizard-result-weight', `${trimNum(target)} кг`);
+  setText('#wizard-result-date', days > 0 ? `Вы достигнете своей цели к ${fmtFullDate(finish)}` : 'Цель достигнута — просто держим вес!');
+  setText('#wizard-result-kcal', direction === 'keep'
     ? `Держим вес: ${targetKcal.toLocaleString('ru-RU')} ккал в день`
-    : `Цель по калориям: ${targetKcal.toLocaleString('ru-RU')} ккал в день (${direction === 'loss' ? 'дефицит' : 'профицит'} ${delta.toLocaleString('ru-RU')} ккал)`;
-  const waterEl = $('#wizard-result-water');
-  if (waterEl) waterEl.textContent = `Вода для обмена веществ: ${trimNum(waterL)} л в день (30 мл/кг + активность)`;
+    : `Цель по калориям: ${targetKcal.toLocaleString('ru-RU')} ккал в день (${direction === 'loss' ? 'дефицит' : 'профицит'} ${delta.toLocaleString('ru-RU')} ккал)`);
+  setText('#wizard-result-water', `Вода для обмена веществ: ${trimNum(waterL)} л в день (30 мл/кг + активность)`);
   const noteEl = $('#wizard-result-note');
   if (noteEl) {
     const low = direction !== 'keep' && targetKcal > 0 && targetKcal < 1200;
@@ -1811,7 +2131,10 @@ function renderResult() {
     if (low) noteEl.textContent = 'Внимание: при таком темпе калорийность опускается ниже минимума ВОЗ (1200 ккал) — сверьтесь со специалистом.';
   }
   const months = $('#wizard-months');
-  if (months) { months.innerHTML = buildMonths(plan.start, finish).map((m) => `<span>${m}</span>`).join(''); months.style.width = '100%'; }
+  if (months) {
+    months.innerHTML = buildMonths(plan.start, finish).map((m) => `<span>${m}</span>`).join('');
+    months.style.width = '100%';
+  }
   renderWeightChart(plan);
 }
 function wizardFinish() {
@@ -1833,13 +2156,13 @@ function wizardFinish() {
 function openPlanModal(plan) {
   const modal = $('#plan-modal');
   if (!modal) return;
-  $('#plan-kcal').textContent = plan.targetKcal.toLocaleString('ru-RU');
-  $('#plan-water').textContent = trimNum(plan.waterL);
-  const note = $('#plan-note');
-  if (note) note.textContent = plan.direction === 'keep'
+  setText('#plan-kcal', plan.targetKcal.toLocaleString('ru-RU'));
+  setText('#plan-water', trimNum(plan.waterL));
+  setText('#plan-note', plan.direction === 'keep'
     ? `Норма поддержки ≈ ${Math.round(plan.tdee).toLocaleString('ru-RU')} ккал · вода: 30 мл/кг + активность`
-    : `Норма ≈ ${Math.round(plan.tdee).toLocaleString('ru-RU')} ккал · ${plan.direction === 'loss' ? 'дефицит' : 'профицит'} ${plan.delta.toLocaleString('ru-RU')} ккал · вода: 30 мл/кг + активность`;
-  modal.hidden = false; document.body.classList.add('no-scroll');
+    : `Норма ≈ ${Math.round(plan.tdee).toLocaleString('ru-RU')} ккал · ${plan.direction === 'loss' ? 'дефицит' : 'профицит'} ${plan.delta.toLocaleString('ru-RU')} ккал · вода: 30 мл/кг + активность`);
+  modal.hidden = false;
+  document.body.classList.add('no-scroll');
 }
 function applyPlan() {
   if (!lastPlan) return;
@@ -1848,7 +2171,9 @@ function applyPlan() {
   const modal = $('#plan-modal');
   if (modal) modal.hidden = true;
   document.body.classList.remove('no-scroll');
-  wizardClose(); rerenderAll(); renderProfileSummary();
+  wizardClose();
+  rerenderAll();
+  renderProfileSummary();
   LOG('Цели обновлены: ккал', state.goals.kcal, '| вода', state.goals.waterL, 'л');
 }
 function initWizard() {
@@ -1879,7 +2204,8 @@ function initWizard() {
 
 /* ------------------ 12. САЙДБАР, СОБЫТИЯ, СИНХРОНИЗАЦИЯ ------------------ */
 function initSidebar() {
-  const sidebar = $('#sidebar'), backdrop = $('#sidebar-backdrop');
+  const sidebar = $('#sidebar');
+  const backdrop = $('#sidebar-backdrop');
   if (!sidebar || !backdrop) return;
   const close = () => { sidebar.classList.remove('is-open'); backdrop.classList.remove('is-open'); };
   $('#sidebar-open')?.addEventListener('click', () => { sidebar.classList.add('is-open'); backdrop.classList.add('is-open'); });
@@ -1895,16 +2221,23 @@ function initDiaryEvents() {
   $$('.meal-card').forEach((card) => card.addEventListener('click', (e) => {
     const actionBtn = e.target.closest('[data-action]');
     if (!actionBtn) return;
-    const index = Number(actionBtn.closest('.meal-item').dataset.index);
+    const row = actionBtn.closest('.meal-item');
+    if (!row) return;
+    const index = Number(row.dataset.index);
     const meal = card.dataset.meal;
     if (actionBtn.dataset.action === 'delete') deleteItem(meal, index);
     if (actionBtn.dataset.action === 'edit-weight') openWeightModal(meal, index);
   }));
 
-  modalEl = $('#product-modal'); modalList = $('#modal-list');
-  modalSearch = $('#modal-search-input'); modalSave = $('#modal-save');
-  weightModal = $('#weight-modal'); weightInput = $('#weight-input');
-  scanModal = $('#scan-modal'); confirmModal = $('#confirm-modal'); bcModal = $('#barcode-modal');
+  modalEl = $('#product-modal');
+  modalList = $('#modal-list');
+  modalSearch = $('#modal-search-input');
+  modalSave = $('#modal-save');
+  weightModal = $('#weight-modal');
+  weightInput = $('#weight-input');
+  scanModal = $('#scan-modal');
+  confirmModal = $('#confirm-modal');
+  bcModal = $('#barcode-modal');
 
   if (modalEl) {
     modalEl.addEventListener('click', (e) => {
@@ -1919,7 +2252,10 @@ function initDiaryEvents() {
     modalSave.addEventListener('click', saveSelection);
     modalSearch.addEventListener('input', () => { state.modalQuery = modalSearch.value; renderModalList(); });
     $('#modal-search-clear')?.addEventListener('click', () => {
-      modalSearch.value = ''; state.modalQuery = ''; renderModalList(); modalSearch.focus();
+      modalSearch.value = '';
+      state.modalQuery = '';
+      renderModalList();
+      modalSearch.focus();
     });
   }
   if (weightModal) {
@@ -1952,14 +2288,14 @@ function initDiaryEvents() {
       const f = e.dataTransfer?.files?.[0];
       if (f) handleScanFile(f);
     });
-    $('#scan-file').addEventListener('change', (e) => {
+    $('#scan-file')?.addEventListener('change', (e) => {
       const f = e.target.files?.[0];
       e.target.value = '';
       if (f) handleScanFile(f);
     });
-    $('#scan-drop').addEventListener('click', () => $('#scan-file').click());
-    $('#scan-other-err').addEventListener('click', () => { setScanStage('pick'); $('#scan-file').click(); });
-    $('#scan-retry').addEventListener('click', runScan);
+    $('#scan-drop')?.addEventListener('click', () => $('#scan-file').click());
+    $('#scan-other-err')?.addEventListener('click', () => { setScanStage('pick'); $('#scan-file').click(); });
+    $('#scan-retry')?.addEventListener('click', runScan);
   }
 
   /* Галерея */
@@ -1978,36 +2314,64 @@ function initDiaryEvents() {
   $$('[data-meal-barcode]').forEach((btn) => btn.addEventListener('click', () => openBarcode(btn.dataset.mealBarcode)));
   if (bcModal) {
     bcModal.addEventListener('click', (e) => { if (e.target.closest('[data-bc-close]')) closeBarcode(); });
-    $('#bc-camera-on').addEventListener('click', startBcCamera);
-    $('#bc-stop').addEventListener('click', () => { stopBcCamera(); setBcStatus('Камера выключена.', 'info'); });
-    $('#bc-photo').addEventListener('click', () => $('#bc-file').click());
-    $('#bc-file').addEventListener('change', (e) => {
+    $('#bc-camera-on')?.addEventListener('click', startBcCamera);
+    $('#bc-stop')?.addEventListener('click', () => { stopBcCamera(); setBcStatus('Камера выключена.', 'info'); });
+    $('#bc-photo')?.addEventListener('click', () => $('#bc-file').click());
+    $('#bc-file')?.addEventListener('change', (e) => {
       const f = e.target.files?.[0];
       e.target.value = '';
       if (f) detectBarcodeFromImage(f);
     });
-    $('#bc-form').addEventListener('submit', (e) => { e.preventDefault(); handleBarcode($('#bc-input').value); });
-    $('#bc-again').addEventListener('click', () => {
-      setBcStage('start'); setBcStatus('Введите или отсканируйте другой код.', 'info');
-      $('#bc-input').value = ''; $('#bc-input').focus();
+    $('#bc-form')?.addEventListener('submit', (e) => { e.preventDefault(); handleBarcode(getVal('#bc-input')); });
+    $('#bc-again')?.addEventListener('click', () => {
+      setBcStage('start');
+      setBcStatus('Введите или отсканируйте другой код.', 'info');
+      setVal('#bc-input', '');
+      const el = $('#bc-input');
+      if (el) el.focus();
     });
-    $('#bc-new-cancel').addEventListener('click', () => { setBcStage('start'); setBcStatus('Введите другой код.', 'info'); });
-    $('#bc-units').addEventListener('click', (e) => {
+    $('#bc-wrong')?.addEventListener('click', bcWrongProduct);
+    $('#bc-units')?.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-bc-unit]');
       if (btn) setBcUnit(btn.dataset.bcUnit);
     });
-    $('#bc-minus').addEventListener('click', () => stepBc(-1));
-    $('#bc-plus').addEventListener('click', () => stepBc(1));
-    $('#bc-amount').addEventListener('input', renderBcTotal);
-    $('#bc-add').addEventListener('click', bcAdd);
-    $('#bc-new-add').addEventListener('click', bcNewAdd);
-    $('#bc-saved').addEventListener('click', (e) => {
+    $('#bc-minus')?.addEventListener('click', () => stepBc(-1));
+    $('#bc-plus')?.addEventListener('click', () => stepBc(1));
+    $('#bc-amount')?.addEventListener('input', renderBcTotal);
+    $('#bc-add')?.addEventListener('click', bcAdd);
+
+    ['#bc-fix-name', '#bc-fix-brand', '#bc-fix-kcal', '#bc-fix-p', '#bc-fix-f', '#bc-fix-c', '#bc-fix-pack', '#bc-fix-piece']
+      .forEach((sel) => $(sel)?.addEventListener('input', bcSyncFix));
+
+    $('#bc-choice-form')?.addEventListener('submit', bcChoiceSearch);
+    $('#bc-choice-list')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-bc-pick-choice]');
+      if (btn) bcPickCandidate(Number(btn.dataset.bcPickChoice));
+    });
+    $('#bc-choice-back')?.addEventListener('click', () => {
+      if (bc.product) { renderBcResult(); setBcStage('result'); }
+      else { setBcStage('start'); setBcStatus('Введите или отсканируйте другой код.', 'info'); }
+    });
+    $('#bc-choice-manual')?.addEventListener('click', () => openBcNewCard(bc.product || { name: bc.query }));
+
+    $('#bc-new-cancel')?.addEventListener('click', () => { setBcStage('start'); setBcStatus('Введите другой код.', 'info'); });
+    $('#bc-new-add')?.addEventListener('click', bcNewAdd);
+    $('#bc-find-form')?.addEventListener('submit', bcFindByName);
+    $('#bc-find-list')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-bc-pick]');
+      if (!btn) return;
+      const item = (bc.candidates || [])[Number(btn.dataset.bcPick)];
+      if (item) applyBcCandidate(item);
+    });
+    $('#bc-saved')?.addEventListener('click', (e) => {
       const del = e.target.closest('[data-bc-del]');
       if (del) {
         const code = del.dataset.bcDel;
         state.barcodes = (state.barcodes || []).filter((b) => String(b.code) !== code);
-        persistBarcodes(); rebuildBarcodes(); renderBcSaved();
-        showToast('Товар удалён из базы');
+        persistBarcodes();
+        rebuildBarcodes();
+        renderBcSaved();
+        showToast('Товар удалён из вашей базы');
         return;
       }
       const open = e.target.closest('[data-bc-open]');

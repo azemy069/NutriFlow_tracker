@@ -18,7 +18,7 @@
         <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8 6 4 10 4 14a8 8 0 0 0 16 0c0-4-4-8-8-12z"/></svg>
         NutriFlow
       </a>
-      <button class="sidebar__close" id="sidebar-close" aria-label="Закрыть меню"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <button class="sidebar__close" id="sidebar-close" type="button" aria-label="Закрыть меню"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <nav class="sidebar__nav">
       <ul class="sidebar__list">
@@ -37,7 +37,7 @@
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <header class="topbar">
-    <button class="topbar__burger" id="sidebar-open" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <button class="topbar__burger" id="sidebar-open" type="button" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
     <span class="topbar__title">Дневник</span>
     <span class="topbar__date" id="today-date"></span>
   </header>
@@ -50,9 +50,9 @@
           <h1 class="diary__title">Дневник питания</h1>
         </div>
         <div class="diary__nav">
-          <button class="diary__nav-btn" id="diary-prev" aria-label="Предыдущий день"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="diary__nav-btn" id="diary-prev" type="button" aria-label="Предыдущий день"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
           <span class="diary__date" id="diary-date">Сегодня</span>
-          <button class="diary__nav-btn" id="diary-next" aria-label="Следующий день"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+          <button class="diary__nav-btn" id="diary-next" type="button" aria-label="Следующий день"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
         </div>
       </header>
 
@@ -88,7 +88,7 @@
           <div class="meal-card__head"><h2 class="meal-card__title">Завтрак</h2><span class="meal-card__cals" data-meal-total="breakfast">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="breakfast"></ul>
           <div class="meal-card__actions">
-            <button class="meal-card__add" data-meal-add="breakfast"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__add" type="button" data-meal-add="breakfast"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
             <button class="meal-card__photo" type="button" data-meal-photo="breakfast" aria-label="Сканировать фото для завтрака">
               <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
             </button>
@@ -97,11 +97,12 @@
             </button>
           </div>
         </article>
+
         <article class="meal-card glass" data-meal="lunch">
           <div class="meal-card__head"><h2 class="meal-card__title">Обед</h2><span class="meal-card__cals" data-meal-total="lunch">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="lunch"></ul>
           <div class="meal-card__actions">
-            <button class="meal-card__add" data-meal-add="lunch"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__add" type="button" data-meal-add="lunch"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
             <button class="meal-card__photo" type="button" data-meal-photo="lunch" aria-label="Сканировать фото для обеда">
               <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
             </button>
@@ -110,11 +111,12 @@
             </button>
           </div>
         </article>
+
         <article class="meal-card glass" data-meal="dinner">
           <div class="meal-card__head"><h2 class="meal-card__title">Ужин</h2><span class="meal-card__cals" data-meal-total="dinner">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="dinner"></ul>
           <div class="meal-card__actions">
-            <button class="meal-card__add" data-meal-add="dinner"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__add" type="button" data-meal-add="dinner"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
             <button class="meal-card__photo" type="button" data-meal-photo="dinner" aria-label="Сканировать фото для ужина">
               <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
             </button>
@@ -123,11 +125,12 @@
             </button>
           </div>
         </article>
+
         <article class="meal-card glass" data-meal="snack">
           <div class="meal-card__head"><h2 class="meal-card__title">Перекус</h2><span class="meal-card__cals" data-meal-total="snack">0 ккал</span></div>
           <ul class="meal-card__list" data-meal-list="snack"></ul>
           <div class="meal-card__actions">
-            <button class="meal-card__add" data-meal-add="snack"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
+            <button class="meal-card__add" type="button" data-meal-add="snack"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить</button>
             <button class="meal-card__photo" type="button" data-meal-photo="snack" aria-label="Сканировать фото для перекуса">
               <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Фото
             </button>
@@ -174,6 +177,7 @@
             <span class="water__add">+150 мл</span>
             <span class="water__label">Чашка</span>
           </button>
+
           <button class="water__card glass" type="button" data-water-add="200" aria-label="Добавить 200 мл — стакан">
             <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
             <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -185,6 +189,7 @@
             <span class="water__add">+200 мл</span>
             <span class="water__label">Стакан</span>
           </button>
+
           <button class="water__card glass" type="button" data-water-add="330" aria-label="Добавить 330 мл — бутылка">
             <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
             <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -196,6 +201,7 @@
             <span class="water__add">+330 мл</span>
             <span class="water__label">Бутылка</span>
           </button>
+
           <button class="water__card glass" type="button" data-water-add="500" aria-label="Добавить 500 мл — бутылка 0,5 литра">
             <span class="water__splash" aria-hidden="true"><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i><i class="water__drop"></i></span>
             <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -232,7 +238,7 @@
     <span>Сделано с заботой о вашем рационе</span>
   </footer>
 
-  <!-- Окно выбора продуктов: Поиск / Недавние / Фото -->
+  <!-- ===== ОКНО ВЫБОРА: ПОИСК / НЕДАВНИЕ / ФОТО ===== -->
   <div class="modal" id="product-modal" hidden role="dialog" aria-modal="true" aria-label="Добавить продукты">
     <div class="modal__backdrop" data-modal-close></div>
     <div class="modal__dialog glass">
@@ -254,7 +260,7 @@
     </div>
   </div>
 
-  <!-- Окно порции: штуки / граммы / миллилитры -->
+  <!-- ===== ОКНО ПОРЦИИ: ШТУКИ / ГРАММЫ / МИЛЛИЛИТРЫ ===== -->
   <div class="modal" id="weight-modal" hidden role="dialog" aria-modal="true" aria-label="Изменить порцию">
     <div class="modal__backdrop" data-weight-close></div>
     <div class="modal__dialog modal__dialog--mini glass">
@@ -345,6 +351,7 @@
       </div>
 
       <p class="bc__status" id="bc-status" data-kind="info">Наведите камеру на штрихкод или введите цифры вручную.</p>
+      <div class="bc-trace" id="bc-trace" hidden></div>
 
       <!-- Старт -->
       <div class="bc__start" id="bc-start">
@@ -365,12 +372,12 @@
         <form class="bc__manual" id="bc-form">
           <label class="bc__label" for="bc-input">Цифры под штрихкодом</label>
           <div class="bc__manual-row">
-            <input class="bc__input" id="bc-input" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="4607176440249">
+            <input class="bc__input" id="bc-input" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="7622202048265">
             <button class="btn btn--primary" type="submit">Найти</button>
           </div>
         </form>
         <div class="bc__saved" id="bc-saved-wrap" hidden>
-          <span class="bc__label">Недавние коды</span>
+          <span class="bc__label">Мои товары</span>
           <ul class="bc__chips" id="bc-saved"></ul>
         </div>
       </div>
@@ -387,6 +394,7 @@
           <span class="bc__code" id="bc-code">—</span>
           <h4 class="bc__name" id="bc-name">—</h4>
           <p class="bc__brand" id="bc-brand"></p>
+          <p class="bc__warn" id="bc-warn" hidden></p>
           <div class="bc__per100">
             <span><b id="bc-kcal100">0</b> ккал</span>
             <span>Б <b id="bc-p100">0</b></span>
@@ -397,6 +405,21 @@
         </div>
 
         <p class="bc__pack" id="bc-pack" hidden></p>
+
+        <details class="bc-fix" id="bc-fix">
+          <summary>Проверить и исправить данные</summary>
+          <div class="bc__form-grid">
+            <label class="bc__field bc__field--wide"><span>Полное название</span><input id="bc-fix-name" type="text" maxlength="140"></label>
+            <label class="bc__field"><span>Бренд</span><input id="bc-fix-brand" type="text" maxlength="40"></label>
+            <label class="bc__field"><span>Упаковка, г/мл</span><input id="bc-fix-pack" type="number" min="0" max="20000" step="1"></label>
+            <label class="bc__field"><span>Ккал / 100</span><input id="bc-fix-kcal" type="number" min="0" max="900" step="1"></label>
+            <label class="bc__field"><span>Белки / 100</span><input id="bc-fix-p" type="number" min="0" max="100" step="0.1"></label>
+            <label class="bc__field"><span>Жиры / 100</span><input id="bc-fix-f" type="number" min="0" max="100" step="0.1"></label>
+            <label class="bc__field"><span>Углеводы / 100</span><input id="bc-fix-c" type="number" min="0" max="100" step="0.1"></label>
+            <label class="bc__field bc__field--wide"><span>Вес 1 штуки, г (если товар счётный)</span><input id="bc-fix-piece" type="number" min="0" max="2000" step="0.5"></label>
+          </div>
+          <p class="bc-fix__hint">Исправления сохранятся под этим штрихкодом в вашу базу — в следующий раз товар найдётся сразу и с правильными цифрами.</p>
+        </details>
 
         <div class="bc__portion">
           <span class="bc__label">Порция</span>
@@ -409,14 +432,31 @@
             <button type="button" id="bc-minus" aria-label="Уменьшить порцию">−</button>
             <input id="bc-amount" type="number" min="1" max="5000" step="1" value="1">
             <button type="button" id="bc-plus" aria-label="Увеличить порцию">+</button>
-            <span class="bc__unit" id="bc-unit">шт</span>
+            <span class="bc__unit" id="bc-unit">г</span>
           </div>
           <p class="bc__total" id="bc-total">0 ккал · Б 0 · Ж 0 · У 0</p>
         </div>
 
         <div class="bc__actions">
+          <button class="btn-soft" type="button" id="bc-wrong">Это не тот товар</button>
           <button class="btn-soft" type="button" id="bc-again">Другой код</button>
           <button class="btn btn--primary" type="button" id="bc-add">Добавить в рацион</button>
+        </div>
+      </div>
+
+      <!-- Уточнение товара -->
+      <div class="bc__choice" id="bc-choice" hidden>
+        <p class="bc__notfound" id="bc-choice-title">Уточните товар</p>
+        <p class="bc__new-head">Код <strong id="bc-choice-code">—</strong>. Автоматически подставлять КБЖУ похожего товара нельзя — выберите точную позицию, и данные запомнятся под этим штрихкодом.</p>
+        <form class="bc-find__row" id="bc-choice-form">
+          <input class="bc__input" id="bc-choice-input" type="search" autocomplete="off" placeholder="Например, Alpen Gold Max Fun 140 г">
+          <button class="btn btn--primary" type="submit">Искать</button>
+        </form>
+        <p class="bc-find__hint" id="bc-choice-hint">Сначала ищем среди товаров, продающихся в России.</p>
+        <ul class="bc-find__list" id="bc-choice-list"></ul>
+        <div class="bc__actions">
+          <button class="btn-soft" type="button" id="bc-choice-back">Назад</button>
+          <button class="btn-soft" type="button" id="bc-choice-manual">Ввести вручную</button>
         </div>
       </div>
 
@@ -424,16 +464,28 @@
       <div class="bc__new" id="bc-new" hidden>
         <p class="bc__notfound">Данный штрихкод не состоит в базе данных</p>
         <p class="bc__new-head">Код <strong id="bc-code-new">—</strong>. Заполните карточку товара — он сохранится в базе, и в следующий раз найдётся сразу.</p>
+
+        <div class="bc-find">
+          <span class="bc__label">Найдите товар по названию — КБЖУ подставятся сами</span>
+          <form class="bc-find__row" id="bc-find-form">
+            <input class="bc__input" id="bc-find-input" type="search" autocomplete="off" placeholder="Например, Простоквашино творог 5%">
+            <button class="btn btn--primary" type="submit">Искать</button>
+          </form>
+          <p class="bc-find__hint" id="bc-find-hint">Сначала ищем среди товаров, продающихся в России, затем по всему миру.</p>
+          <ul class="bc-find__list" id="bc-find-list"></ul>
+        </div>
+
         <div class="bc__form-grid">
-          <label class="bc__field bc__field--wide"><span>Название</span><input id="bc-new-name" type="text" maxlength="60" placeholder="Например, Пирожное бисквитное"></label>
+          <label class="bc__field bc__field--wide"><span>Полное название</span><input id="bc-new-name" type="text" maxlength="140" placeholder="Например, Йогурт питьевой клубника 2,5%"></label>
           <label class="bc__field"><span>Бренд</span><input id="bc-new-brand" type="text" maxlength="40" placeholder="необязательно"></label>
           <label class="bc__field"><span>Единицы</span><select id="bc-new-unit"><option value="g">граммы</option><option value="ml">миллилитры</option></select></label>
           <label class="bc__field"><span>Ккал / 100</span><input id="bc-new-kcal" type="number" min="0" max="900" step="1" value="0"></label>
           <label class="bc__field"><span>Белки / 100</span><input id="bc-new-p" type="number" min="0" max="100" step="0.1" value="0"></label>
           <label class="bc__field"><span>Жиры / 100</span><input id="bc-new-f" type="number" min="0" max="100" step="0.1" value="0"></label>
           <label class="bc__field"><span>Углеводы / 100</span><input id="bc-new-c" type="number" min="0" max="100" step="0.1" value="0"></label>
-          <label class="bc__field"><span>Вес 1 шт, г</span><input id="bc-new-piece" type="number" min="0" max="2000" step="0.5" value="0" placeholder="если товар счётный"></label>
-          <label class="bc__field"><span>Порция</span><input id="bc-new-amount" type="number" min="1" max="5000" step="1" value="100"></label>
+          <label class="bc__field"><span>Упаковка, г/мл</span><input id="bc-new-pack" type="number" min="0" max="20000" step="1" value="0"></label>
+          <label class="bc__field"><span>Вес 1 шт, г</span><input id="bc-new-piece" type="number" min="0" max="2000" step="0.5" value="0"></label>
+          <label class="bc__field bc__field--wide"><span>Порция для добавления</span><input id="bc-new-amount" type="number" min="1" max="5000" step="1" value="100"></label>
         </div>
         <div class="bc__actions">
           <button class="btn-soft" type="button" id="bc-new-cancel">Назад</button>
@@ -458,7 +510,8 @@
 
   <script src="data/products.js"></script>
   <script src="data/barcodes.js"></script>
+  <script src="data/barcode-sources.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-  <script src="data/script.js?v=21"></script>
+  <script src="data/script.js?v=24"></script>
 </body>
 </html>

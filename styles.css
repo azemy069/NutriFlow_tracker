@@ -2701,3 +2701,138 @@ html, body { overflow-x: clip; }
   .modal__item-btn { flex-wrap: wrap; }
   .modal__item-last { order: 3; flex-basis: 100%; }
 }
+/* ==========================================================================
+   26. ШТРИХКОД: поиск по названию и таблица источников (debug)
+   ========================================================================== */
+.bc-find {
+  display: grid; gap: var(--space-xs);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(47, 127, 214, .09);
+  box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .22);
+}
+.bc-find__row { display: flex; gap: var(--space-xs); }
+.bc-find__row .bc__input { flex: 1; min-width: 0; font-family: var(--font-body); letter-spacing: 0; }
+.bc-find__hint { font-size: var(--fs-caption); color: var(--clr-muted); }
+.bc-find__list {
+  display: grid; gap: 4px;
+  max-height: 230px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #2f7fd6 transparent;
+}
+.bc-find__list::-webkit-scrollbar { width: 7px; }
+.bc-find__list::-webkit-scrollbar-track { background: rgba(47, 127, 214, .1); border-radius: 999px; }
+.bc-find__list::-webkit-scrollbar-thumb { background: linear-gradient(#2f7fd6, var(--clr-teal)); border-radius: 999px; }
+.bc-find__item {
+  display: flex; align-items: baseline; gap: var(--space-sm);
+  width: 100%; padding: .6em .8em;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .62);
+  box-shadow: inset 0 0 0 1px var(--clr-line);
+  text-align: left;
+  transition: background-color var(--transition), transform var(--transition);
+}
+.bc-find__item:hover { background: #fff; transform: translateX(3px); }
+.bc-find__name { flex: 1; font-size: var(--fs-small); font-weight: 700; color: var(--clr-ink); }
+.bc-find__name em { font-style: normal; font-weight: 600; color: var(--clr-muted); }
+.bc-find__kcal { font-size: var(--fs-caption); font-weight: 800; color: var(--clr-emerald); white-space: nowrap; }
+.bc-find__empty { padding: var(--space-sm); font-size: var(--fs-small); font-style: italic; color: var(--clr-muted); }
+
+.bc-trace {
+  display: grid; gap: 3px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: rgba(10, 75, 69, .07);
+  box-shadow: inset 0 0 0 1px var(--clr-line);
+  font-size: var(--fs-caption);
+}
+.bc-trace__title { font-weight: 800; color: var(--clr-teal-deep); }
+.bc-trace__row { display: flex; gap: var(--space-xs); align-items: baseline; }
+.bc-trace__row b { flex: 1; font-weight: 700; color: var(--clr-ink); }
+.bc-trace__row i { font-style: normal; font-weight: 800; }
+.bc-trace__row u { text-decoration: none; color: var(--clr-muted); }
+.bc-trace__row[data-state="найдено"] i { color: var(--clr-emerald); }
+.bc-trace__row[data-state="пусто"] i { color: var(--clr-muted); }
+.bc-trace__row[data-state="лимит"] i,
+.bc-trace__row[data-state="ошибка"] i { color: var(--clr-danger); }
+.bc-trace__row[data-state="пропуск"] i { color: var(--clr-muted); }
+
+[data-theme="dark"] .bc-find { background: rgba(124, 192, 255, .1); box-shadow: inset 0 0 0 1px rgba(124, 192, 255, .24); }
+[data-theme="dark"] .bc-find__item { background: rgba(18, 38, 30, .7); box-shadow: inset 0 0 0 1px rgba(160, 220, 195, .12); }
+[data-theme="dark"] .bc-find__item:hover { background: rgba(28, 54, 42, .9); }
+[data-theme="dark"] .bc-find__list::-webkit-scrollbar-track { background: rgba(124, 192, 255, .12); }
+[data-theme="dark"] .bc-trace { background: rgba(120, 200, 170, .08); }
+
+/* ==========================================================================
+   27. ШТРИХКОД: проверка данных, уточнение товара, страховка сброса
+   ========================================================================== */
+*, *::before, *::after { margin: 0; }
+
+.bc__warn {
+  padding: .6em .9em;
+  border-radius: var(--radius-sm);
+  background: rgba(238, 182, 75, .18);
+  box-shadow: inset 0 0 0 1px rgba(238, 182, 75, .45);
+  color: #8a5c12;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  line-height: 1.5;
+}
+[data-theme="dark"] .bc__warn { background: rgba(238, 182, 75, .12); color: #f0c674; }
+
+.bc-fix {
+  border-radius: var(--radius-md);
+  background: rgba(47, 127, 214, .08);
+  box-shadow: inset 0 0 0 1px rgba(47, 127, 214, .22);
+  padding: var(--space-sm) var(--space-md);
+}
+.bc-fix > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  color: var(--bc-accent, #2f7fd6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.bc-fix > summary::-webkit-details-marker { display: none; }
+.bc-fix > summary::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--transition);
+}
+.bc-fix[open] > summary::before { transform: rotate(45deg); }
+.bc-fix[open] > summary { margin-bottom: var(--space-sm); }
+.bc-fix__hint {
+  margin-top: var(--space-sm);
+  font-size: var(--fs-caption);
+  color: var(--clr-muted);
+  line-height: 1.5;
+}
+[data-theme="dark"] .bc-fix { background: rgba(124, 192, 255, .1); box-shadow: inset 0 0 0 1px rgba(124, 192, 255, .24); }
+
+.bc__choice { display: grid; gap: var(--space-sm); }
+.bc__choice .bc-find__row { margin-top: var(--space-2xs); }
+.bc-find__name em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--clr-muted);
+}
+.bc-find__ru {
+  margin-left: var(--space-2xs);
+  padding: .1em .5em;
+  border-radius: var(--radius-pill);
+  background: rgba(31, 189, 142, .18);
+  color: var(--clr-teal) !important;
+  font-size: var(--fs-caption);
+}
+[data-theme="dark"] .bc-find__ru { background: rgba(52, 211, 153, .18); color: var(--clr-teal) !important; }
+
+.bc-fix .bc__form-grid { gap: var(--space-xs); }
+.bc__actions { row-gap: var(--space-xs); }
+@media (max-width: 520px) {
+  .bc__actions .btn, .bc__actions .btn-soft { flex: 1 1 100%; justify-content: center; }
+}
