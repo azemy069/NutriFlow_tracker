@@ -3669,3 +3669,19 @@ button.st-extreme:hover { transform: translateY(-3px); box-shadow: var(--shadow-
   .st-wm__actions .btn, .st-wm__actions .btn-soft { flex: 1 1 100%; justify-content: center; }
   .st-wm__del { margin-right: 0; }
 }
+
+/* ==========================================================================
+   34. ПОЯВЛЕНИЕ БЛОКОВ: владельцем входа становится reveal.js
+   ========================================================================== */
+/* Нативная scroll-анимация больше не спорит с каскадом вылета */
+.reveal { animation: none; animation-timeline: auto; animation-range: normal; }
+.article > .reveal:nth-child(2),
+.article > .reveal:nth-child(3),
+.article > .reveal:nth-child(4),
+.stories__grid > .reveal:nth-child(2),
+.stories__grid > .reveal:nth-child(3) { animation-delay: 0s; }
+
+/* Пока режим вылета не включён, блоки всегда видны */
+html:not(.rv-on) .rv,
+html:not(.rv-on) .rv-in,
+html:not(.rv-on) .rv-done { opacity: 1; transform: none; filter: none; }
