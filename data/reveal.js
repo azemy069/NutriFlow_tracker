@@ -1,12 +1,18 @@
 /* ==========================================================================
-   NutriFlow · REVEAL «КАСКАД СБОКУ» (версия 4, самонастраивающаяся)
+   NutriFlow · REVEAL «КАСКАД СБОКУ» (версия 5, самонастраивающаяся)
    Подключение: <head>, сразу после styles.css, БЕЗ defer/async.
 
    Блоки находятся ДВУМЯ способами одновременно:
-   1) по знакомым классам страниц;
-   2) автоматически — вложенность контента любой страницы.
-   Поэтому главная и статистика анимируются так же, как дневник и планировщик,
-   даже если их разметка отличается от ожидаемой.
+     · по знакомым классам страниц;
+     · автоматически — вложенность контента любой страницы.
+
+   НОВОЕ В ВЕРСИИ 5:
+     · Наблюдатель следит не только за добавлением узлов, но и за атрибутом
+       hidden. Если блок был скрыт при загрузке (форма входа, пустое
+       состояние, карточка цели), а потом экран переключился — блок
+       появляется с тем же каскадом, а не остаётся невидимым.
+     · Перерисованный контент показывается сразу, без мигания.
+     · Аварийные страховки прежние: контент не может остаться скрытым.
    ========================================================================== */
 (function () {
   'use strict';
@@ -51,12 +57,13 @@
   function valid(sel) {
     try { document.querySelector(sel); return true; } catch (e) { return false; }
   }
+
   var KNOWN = KNOWN_RAW.filter(valid);
   var GENERIC = GENERIC_RAW.filter(valid);
   var ALL = KNOWN.concat(GENERIC);
   if (!ALL.length) return;
-
   var SEL_ALL = ALL.join(',');
+
   var supportsWhere = !!(window.CSS && CSS.supports && CSS.supports('selector(:where(a))'));
 
   /* --- 2. Стили: скрытие с нулевым весом, раскрытие всегда сильнее --- */
@@ -88,7 +95,15 @@
   var nodes = [];
   var io = null;
   var booted = false;
-  var bootAt = 0;
+
+  /* Служебные и невидимые узлы никогда не анимируем */
+  function usable(el) {
+    if (!el.getClientRects().length) return false;
+    if (el.closest('[hidden]')) return false;
+    if (el.closest('.modal, .wizard, .st-drawer-wrap, .sidebar, .topbar, .bg-aura')) return false;
+    var tag = el.tagName;
+    return tag !== 'SCRIPT' && tag !== 'STYLE' && tag !== 'LINK' && tag !== 'TEMPLATE';
+  }
 
   /* --- 3. Аварийный показ: контент не может остаться невидимым --- */
   function revealEverything() {
@@ -107,6 +122,7 @@
     root.classList.remove('rv-on');
     if (io) { try { io.disconnect(); } catch (e) {} io = null; }
   }
+
   var guard = setTimeout(function () { if (!booted) revealEverything(); }, GUARD_MS);
   window.addEventListener('error', function () { if (!booted) revealEverything(); });
 
@@ -149,11 +165,54 @@
     managed.add(el);
   }
 
-  /* --- 4. Перерисованный контент показываем сразу, без мигания --- */
+  /* --- 4. Показ пачки блоков: обёртки сразу, листья — каскадом --- */
+  function revealBatch(list) {
+    var pool = [];
+    list.forEach(function (el) {
+      if (managed.has(el)) return;
+      /* Ещё скрыт — не трогаем: покажет наблюдатель hidden, когда откроется */
+      if (el.closest('[hidden]')) return;
+      /* Служебные зоны (модалки, сайдбар) показываем сразу, без анимации */
+      if (!usable(el)) { managed.add(el); el.classList.add('rv-done'); return; }
+      pool.push(el);
+    });
+    /* убираем обёртки, внутри которых есть свои блоки — иначе двойная анимация */
+    var targets = pool.filter(function (el) {
+      return !pool.some(function (other) { return other !== el && el.contains(other); });
+    });
+    pool.forEach(function (el) {
+      if (targets.indexOf(el) === -1 && !managed.has(el)) {
+        managed.add(el);
+        el.classList.add('rv-done');
+      }
+    });
+    targets.forEach(function (el) {
+      if (managed.has(el)) return;
+      prep(el, nodes.length);
+      nodes.push(el);
+      if (io) io.observe(el); else show(el, 0);
+    });
+  }
+
+  /* --- 5. Наблюдатель: добавленные узлы + переключение hidden --- */
   function watchDynamic() {
     if (!('MutationObserver' in window)) return;
     new MutationObserver(function (records) {
       records.forEach(function (r) {
+        /* Экран переключился: контейнеру сняли hidden.
+           Собираем его блоки и показываем тем же каскадом. */
+        if (r.type === 'attributes') {
+          var box = r.target;
+          if (box.nodeType !== 1 || box.hidden || !booted) return;
+          var opened = [];
+          try {
+            if (box.matches && box.matches(SEL_ALL)) opened.push(box);
+            if (box.querySelectorAll) opened = opened.concat([].slice.call(box.querySelectorAll(SEL_ALL)));
+          } catch (e) { return; }
+          if (opened.length) revealBatch(opened);
+          return;
+        }
+        /* Добавлены новые узлы (перерисовка списка, графика, плиток) */
         [].forEach.call(r.addedNodes, function (n) {
           if (n.nodeType !== 1) return;
           var list = [];
@@ -163,40 +222,35 @@
           } catch (e) { return; }
           list.forEach(function (el) {
             if (managed.has(el)) return;
-            managed.add(el);
-            if (booted && io && el.getClientRects().length) {
+            /* Добавлен внутрь скрытого контейнера — оставим наблюдателю hidden */
+            if (el.closest('[hidden]')) return;
+            if (!usable(el)) { managed.add(el); el.classList.add('rv-done'); return; }
+            if (booted && io) {
               prep(el, nodes.length);
               nodes.push(el);
               io.observe(el);
             } else {
+              managed.add(el);
               el.classList.add('rv-done');
             }
           });
         });
       });
-    }).observe(document.body, { childList: true, subtree: true });
-  }
-
-  /* Служебные и невидимые узлы никогда не анимируем */
-  function usable(el) {
-    if (!el.getClientRects().length) return false;
-    if (el.closest('[hidden]')) return false;
-    if (el.closest('.modal, .wizard, .st-drawer-wrap, .sidebar, .topbar, .bg-aura')) return false;
-    var tag = el.tagName;
-    return tag !== 'SCRIPT' && tag !== 'STYLE' && tag !== 'LINK' && tag !== 'TEMPLATE';
+    }).observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden']
+    });
   }
 
   function collect() {
     var pool = [];
     try { pool = [].slice.call(document.querySelectorAll(SEL_ALL)); } catch (e) { pool = []; }
     pool = pool.filter(usable);
-
-    /* убираем обёртки, внутри которых есть свои блоки — иначе двойная анимация */
     var targets = pool.filter(function (el) {
       return !pool.some(function (other) { return other !== el && el.contains(other); });
     });
-
-    /* всё, что скрыто правилом, но не анимируется — показываем немедленно */
     pool.forEach(function (el) {
       if (targets.indexOf(el) === -1 && !managed.has(el)) {
         managed.add(el);
@@ -209,15 +263,6 @@
   function init() {
     try {
       nodes = collect();
-      if (!nodes.length) {
-        booted = true;
-        clearTimeout(guard);
-        watchDynamic();
-        return;
-      }
-
-      nodes.forEach(function (el, i) { prep(el, i); });
-
       io = new IntersectionObserver(function (entries) {
         entries.filter(function (e) { return e.isIntersecting; })
           .map(function (e) { return e.target; })
@@ -227,13 +272,10 @@
             show(el, Math.min(i * STEP_MS, CAP_MS));
           });
       }, { threshold: 0.06, rootMargin: '0px 0px -5% 0px' });
-
-      nodes.forEach(function (el) { io.observe(el); });
+      nodes.forEach(function (el, i) { prep(el, i); io.observe(el); });
       watchDynamic();
       booted = true;
-      bootAt = performance.now();
       clearTimeout(guard);
-
       /* поздняя страховка: всё, что видно на экране, но ещё скрыто — показать */
       setTimeout(function () {
         nodes.forEach(function (el) {

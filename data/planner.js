@@ -690,15 +690,51 @@
 
   /* ---------------- 11. ФОТО-СКАНЕР БЛЮДА ---------------- */
   const SCAN_PROMPT = [
-    'Ты нутрициолог и эксперт по оценке еды на фотографиях.',
-    'Определи все съедобные позиции на снимке блюда.',
-    'Для каждой позиции оцени массу в граммах и КБЖУ НА 100 ГРАММ.',
-    'Соусы, масло, сметану, сахар и заправку выделяй отдельными позициями.',
-    'Напитки указывай в граммах (плотность примерно 1).',
-    'Отвечай ТОЛЬКО валидным JSON без markdown, схема:',
-    '{"dish":"короткое название блюда","items":[{"name":"Пельмени","grams":250,"kcal100":275,"p100":12,"f100":14,"c100":25}],"notes":"краткая оговорка о погрешности"}',
-    'Если еды на фото нет, верни {"dish":"","items":[],"notes":"причина"}.',
-  ].join('\n');
+  'Ты нутрициолог и эксперт по оценке еды на фотографиях.',
+  'ГЛАВНОЕ ПРАВИЛО: основа блюда — ОДНА позиция с кулинарным названием',
+  '(«Рамен», «Пельмени отварные», «Мясо по-французски»), а НЕ набор сырых ингредиентов.',
+  'ДОПОЛНИТЕЛЬНЫЕ ПРОДУКТЫ: всё, что подано как отдельный видимый компонент —',
+  'яйцо, сыр, сметана, соус, грибы, нори, зелень, хлеб, гарнир, напиток, фрукт —',
+  'выделяй ОТДЕЛЬНЫМИ позициями со своей массой и КБЖУ на 100 г,',
+  'даже если они лежат сверху на блюде или рядом на тарелке.',
+  'Не выделяй только то, что запечено или растворено внутри блюда',
+  '(майонез и лук в запеканке, мясо в котлете): это часть основной позиции.',
+  'Для основной позиции оцени массу БЕЗ отдельных компонентов и КБЖУ НА 100 Г готового блюда.',
+  'Первая позиция items — главное блюдо, её name совпадает с полем dish.',
+  'Если название блюда или продукта есть в справочнике из system-сообщения — используй ТОЧНО его:',
+  'тогда КБЖУ приложение возьмёт из базы. Если нет — дай точное название и реальные КБЖУ на 100 г:',
+  'приложение сохранит его как новый продукт базы.',
+  'Отвечай ТОЛЬКО валидным JSON без markdown, схема:',
+  '{ "dish": "Пельмени отварные", "items": [',
+  '{ "name": "Пельмени отварные", "grams": 250, "kcal100": 275, "p100": 12, "f100": 12.5, "c100": 29 },',
+  '{ "name": "Сметана 15%", "grams": 30, "kcal100": 158, "p100": 2.6, "f100": 15, "c100": 3 }',
+  '], "notes": "краткая оговорка о погрешности" }',
+  'Если еды на фото нет, верни { "dish": "", "items": [], "notes": "причина" }.',
+].join('\n');
+
+const scanCatalogText = () => allProds().map((p) => prodName(p)).join('; ');
+const scanSystemPrompt = () => [
+  'Ты нутрициолог. Отвечай только валидным JSON без markdown.',
+  'СПРАВОЧНИК НАЗВАНИЙ ПРИЛОЖЕНИЯ. Если блюдо или продукт есть в списке — используй ТОЧНО это имя:',
+  scanCatalogText(),
+].join('\n');
+
+function registerScanProduct(it) {
+  const name = String(it.name || '').trim();
+  if (!name) return null;
+  const exist = exactByName(name);
+  if (exist) return exist.id;
+  if (!(num(it.kcal100) > 0 || num(it.p100) > 0 || num(it.f100) > 0 || num(it.c100) > 0)) return null;
+  const id = 'dish-' + uidRand();
+  const prod = {
+    id, name, fullName: name, brand: '', cat: 'custom',
+    kcal: num(it.kcal100), p: num(it.p100), f: num(it.f100), c: num(it.c100),
+    unit: 'g', piece: 0, pack: 0, own: true, ts: Date.now(), source: 'scan',
+  };
+  S.custom = [prod, ...S.custom].slice(0, 400);
+  saveCustom();
+  return id;
+}
 
   const scan = { date: null, meal: null, dataUrl: '', thumb: '', items: [], dish: '', note: '', seq: 0, busy: false };
 
@@ -743,18 +779,21 @@
     return t;
   };
   function scanItemsToBucket(items, bucket) {
-    (items || []).forEach((it) => {
-      if (it.matchedId && getProd(it.matchedId)) {
-        bucket.push({ id: it.matchedId, weight: it.grams, unit: 'g' });
-        pushRecent(it.matchedId, it.grams, 'g', 0);
-      } else {
-        bucket.push({
-          custom: { name: it.name, kcal100: num(it.kcal100), p100: num(it.p100), f100: num(it.f100), c100: num(it.c100) },
-          weight: it.grams, unit: 'g',
-        });
-      }
-    });
-  }
+  (items || []).forEach((it) => {
+    let id = it.matchedId && getProd(it.matchedId) ? it.matchedId : null;
+    if (!id) id = registerScanProduct(it);
+    if (id) {
+      it.matchedId = id;
+      bucket.push({ id, weight: it.grams, unit: 'g' });
+      pushRecent(id, it.grams, 'g', 0);
+    } else {
+      bucket.push({
+        custom: { name: it.name, kcal100: num(it.kcal100), p100: num(it.p100), f100: num(it.f100), c100: num(it.c100) },
+        weight: it.grams, unit: 'g',
+      });
+    }
+  });
+}
   function scanStage(stage) {
     setHidden('#pl-scan-pick', stage !== 'pick');
     setHidden('#pl-scan-busy', stage !== 'busy');
@@ -825,7 +864,7 @@
     setText('#pl-scan-status', 'Сканирую фото…');
     try {
       const { text } = await apiCascade(VISION_CHAIN, [
-        { role: 'system', content: 'Ты нутрициолог. Отвечай только валидным JSON без markdown.' },
+        { role: 'system', content: scanSystemPrompt() },
         { role: 'user', content: [{ type: 'text', text: SCAN_PROMPT }, { type: 'image_url', image_url: { url: scan.dataUrl } }] },
       ]);
       if (token !== scan.seq) return;
@@ -1410,6 +1449,9 @@
     'Ты видишь последние 50 сообщений переписки и справочник продуктов приложения.',
     '',
     'ТВОЯ ЗАДАЧА: помогать пользователю составлять рацион под его цель и калорийность.',
+    'ГЛАВНОЕ ПРАВИЛО БЛЮДА: вноси готовое блюдо ОДНОЙ позицией с главным названием («Мясо по-французски», «Пельмени отварные»), не разбирай его на ингредиенты.',
+    'Отдельными позициями добавляй только самостоятельные продукты рядом: сметана, соус, хлеб, гарнир, напиток (пример: «Пельмени отварные» + «Сметана 15%»).',
+    'Если готового блюда нет в справочнике — обязательно добавь его в newProducts с КБЖУ на 100 г и используй то же название в days.',
     'Всегда учитывай: названную суточную норму калорий, цель (похудение / набор / поддержание),',
     'пищевые ограничения и вкусы из переписки (вегетарианство, аллергии, нелюбимые продукты),',
     'а также то, что уже стоит в планировщике и дневнике — не дублируй и не ломай заполненное.',
@@ -1634,22 +1676,26 @@
     return created;
   }
   function resolveEntry(entry, created) {
-    const p = created.get(normName(entry.name)) || findByName(entry.name);
-    const unit = entry.unit === 'pc' && !canPc(p) ? 'g' : entry.unit;
-    if (p) {
-      const item = { id: p.id, weight: entry.amount, unit };
-      if (canPc(p)) item.piece = num(p.piece);
-      return item;
-    }
-    if (entry.kcal > 0 || entry.p > 0 || entry.f > 0 || entry.c > 0) {
-      return {
-        custom: { name: entry.name, kcal100: entry.kcal, p100: entry.p, f100: entry.f, c100: entry.c },
-        weight: entry.amount, unit: unit === 'pc' ? 'g' : unit,
-      };
-    }
-    return null;
+  const p = created.get(normName(entry.name)) || findByName(entry.name);
+  const unit = entry.unit === 'pc' && !canPc(p) ? 'g' : entry.unit;
+  if (p) {
+    const item = { id: p.id, weight: entry.amount, unit };
+    if (canPc(p)) item.piece = num(p.piece);
+    return item;
   }
-
+  if (entry.kcal > 0 || entry.p > 0 || entry.f > 0 || entry.c > 0) {
+    const prod = {
+      id: 'dish-' + uidRand(), name: entry.name, fullName: entry.name, brand: '', cat: 'custom',
+      kcal: entry.kcal, p: entry.p, f: entry.f, c: entry.c,
+      unit: 'g', piece: 0, pack: 0, own: true, ts: Date.now(), source: 'ai',
+    };
+    S.custom = [prod, ...S.custom].slice(0, 400);
+    saveCustom();
+    created.set(normName(entry.name), prod);
+    return { id: prod.id, weight: entry.amount, unit: unit === 'pc' ? 'g' : unit };
+  }
+  return null;
+}
   function commitProposal(pr, target) {
     const dates = [...new Set([...pr.days.map((d) => d.date), ...pr.remove.map((r) => r.date), ...pr.clearDays])];
     const undo = { target, custom: S.custom.map((x) => ({ ...x })), planner: {}, diary: {} };

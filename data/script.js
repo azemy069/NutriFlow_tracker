@@ -527,9 +527,11 @@ function updateSaveBtn() {
 function addPhotoItems(items, mealKey) {
   const bucket = dayEntries()[mealKey];
   (items || []).forEach((it) => {
-    if (it.matchedId && resolveProduct(it.matchedId)) {
-      bucket.push({ id: it.matchedId, weight: it.grams, unit: 'g' });
-      pushHistory(it.matchedId, it.grams, 'g', 0);
+    let id = it.matchedId && resolveProduct(it.matchedId) ? it.matchedId : null;
+    if (!id) id = registerScanProduct(it);
+    if (id) {
+      bucket.push({ id, weight: it.grams, unit: 'g' });
+      pushHistory(id, it.grams, 'g', 0);
     } else {
       bucket.push({
         custom: { name: it.name, kcal100: num0(it.kcal100), p100: num0(it.p100), f100: num0(it.f100), c100: num0(it.c100) },
@@ -954,14 +956,59 @@ const PHOTOS_LIMIT = 12;
 
 const SCAN_PROMPT = [
   'Ты нутрициолог и эксперт по оценке еды на фотографиях.',
-  'Определи все съедобные позиции на снимке блюда.',
-  'Для каждой позиции оцени массу в граммах и КБЖУ НА 100 ГРАММ.',
-  'Соусы, масло, сметану, сахар и заправку выделяй отдельными позициями.',
-  'Напитки указывай в граммах (плотность примерно 1).',
-  'Отвечай ТОЛЬКО валидным JSON без markdown и пояснений, схема:',
-  '{"dish":"короткое название блюда","items":[{"name":"Пельмени","grams":250,"kcal100":275,"p100":12,"f100":14,"c100":25}],"notes":"краткая оговорка о погрешности"}',
-  'Если еды на фото нет, верни {"dish":"","items":[],"notes":"причина"}.',
+  'ГЛАВНОЕ ПРАВИЛО: основа блюда — ОДНА позиция с кулинарным названием',
+  '(«Рамен», «Пельмени отварные», «Мясо по-французски»), а НЕ набор сырых ингредиентов.',
+  'ДОПОЛНИТЕЛЬНЫЕ ПРОДУКТЫ: всё, что подано как отдельный видимый компонент —',
+  'яйцо, сыр, сметана, соус, грибы, нори, зелень, хлеб, гарнир, напиток, фрукт —',
+  'выделяй ОТДЕЛЬНЫМИ позициями со своей массой и КБЖУ на 100 г,',
+  'даже если они лежат сверху на блюде или рядом на тарелке.',
+  'Не выделяй только то, что запечено или растворено внутри блюда',
+  '(майонез и лук в запеканке, мясо в котлете): это часть основной позиции.',
+  'Для основной позиции оцени массу БЕЗ отдельных компонентов и КБЖУ НА 100 Г готового блюда.',
+  'Первая позиция items — главное блюдо, её name совпадает с полем dish.',
+  'Если название блюда или продукта есть в справочнике из system-сообщения — используй ТОЧНО его:',
+  'тогда КБЖУ приложение возьмёт из базы. Если нет — дай точное название и реальные КБЖУ на 100 г:',
+  'приложение сохранит его как новый продукт базы.',
+  'Отвечай ТОЛЬКО валидным JSON без markdown, схема:',
+  '{ "dish": "Пельмени отварные", "items": [',
+  '{ "name": "Пельмени отварные", "grams": 250, "kcal100": 275, "p100": 12, "f100": 12.5, "c100": 29 },',
+  '{ "name": "Сметана 15%", "grams": 30, "kcal100": 158, "p100": 2.6, "f100": 15, "c100": 3 }',
+  '], "notes": "краткая оговорка о погрешности" }',
+  'Если еды на фото нет, верни { "dish": "", "items": [], "notes": "причина" }.',
 ].join('\n');
+
+/* Справочник имён для сканера: модель выбирает точное имя, КБЖУ берём из базы */
+const scanCatalogText = () => allProducts().map((p) => displayName(p)).join('; ');
+const scanSystemPrompt = () => [
+  'Ты нутрициолог. Отвечай только валидным JSON без markdown.',
+  'СПРАВОЧНИК НАЗВАНИЙ ПРИЛОЖЕНИЯ. Если блюдо или продукт есть в списке — используй ТОЧНО это имя:',
+  scanCatalogText(),
+].join('\n');
+
+function persistProducts() {
+  state.uid = scopeUid();
+  try { saveJSON(dbKey(state.uid, 'products'), state.custom); return true; }
+  catch { showToast('Не удалось сохранить продукт: нет места в хранилище'); return false; }
+}
+
+/* Блюда нет в базе — сохраняем готовый продукт с КБЖУ на 100 г */
+function registerScanProduct(it) {
+  const name = String(it.name || '').trim();
+  if (!name) return null;
+  const key = normName(name);
+  const exist = allProducts().find((p) => normName(displayName(p)) === key);
+  if (exist) return exist.id;
+  if (!(num0(it.kcal100) > 0 || num0(it.p100) > 0 || num0(it.f100) > 0 || num0(it.c100) > 0)) return null;
+  const id = 'dish-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  state.custom = [{
+    id, name, fullName: name, brand: '', cat: 'custom',
+    kcal: num0(it.kcal100), p: num0(it.p100), f: num0(it.f100), c: num0(it.c100),
+    piece: 0, pack: 0, own: true, ts: Date.now(), source: 'scan',
+  }, ...(state.custom || [])].slice(0, 400);
+  persistProducts();
+  rebuildBarcodes();
+  return id;
+}
 
 const scan = {
   meal: 'breakfast', dataUrl: '', thumb: '', items: [], dish: '', note: '',
@@ -1006,7 +1053,7 @@ async function scanRequest(model) {
         reasoning_effort: 'low',
         temperature: model.includes('gemini-3') ? 1 : 0.2,
         messages: [
-          { role: 'system', content: 'Ты нутрициолог. Отвечай только валидным JSON без markdown.' },
+          { role: 'system', content: scanSystemPrompt() },
           { role: 'user', content: [
             { type: 'text', text: SCAN_PROMPT },
             { type: 'image_url', image_url: { url: scan.dataUrl } },
@@ -2363,8 +2410,12 @@ function initDiaryEvents() {
   modalList = $('#modal-list');
   modalSearch = $('#modal-search-input');
   modalSave = $('#modal-save');
-  weightModal = $('#weight-modal');
+/* #weight-modal существует и на странице статистики (там своё окно веса
+   с колёсами). Окно порции дневника узнаём по полю #weight-input:
+   нет поля — чужое окно не трогаем, иначе script.js падает на null
+   и аварийный показ reveal.js гасит анимации всей страницы. */
   weightInput = $('#weight-input');
+  weightModal = weightInput ? $('#weight-modal') : null;
   scanModal = $('#scan-modal');
   confirmModal = $('#confirm-modal');
   bcModal = $('#barcode-modal');

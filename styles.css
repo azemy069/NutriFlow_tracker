@@ -3685,3 +3685,13 @@ button.st-extreme:hover { transform: translateY(-3px); box-shadow: var(--shadow-
 html:not(.rv-on) .rv,
 html:not(.rv-on) .rv-in,
 html:not(.rv-on) .rv-done { opacity: 1; transform: none; filter: none; }
+/* ==========================================================================
+   35. ФОН ПОД ОТКРЫТЫМ ОКНОМ: заморозка дрейфа ореолов
+   Живой blur(60px)-слой под backdrop-filter пересчитывается каждый кадр
+   и даёт подёргивание размытой подложки. Пока открыто окно (body.no-scroll),
+   ореолы стоят на месте — стекло размывает статичную картинку.
+   ========================================================================== */
+body.no-scroll .bg-aura::before,
+body.no-scroll .bg-aura::after {
+  animation-play-state: paused;
+}
