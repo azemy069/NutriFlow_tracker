@@ -3695,3 +3695,164 @@ body.no-scroll .bg-aura::before,
 body.no-scroll .bg-aura::after {
   animation-play-state: paused;
 }
+
+/* ==========================================================================
+   36. ИМТ: результат и компактная шкала (светлая + тёмная тема)
+   ========================================================================== */
+.bmi-result { display: grid; gap: var(--space-sm); }
+.bmi-result__card {
+  display: grid; justify-items: center; gap: 2px;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(31, 189, 142, .14), rgba(111, 214, 192, .10));
+  box-shadow: inset 0 0 0 1.5px rgba(31, 189, 142, .35);
+}
+.bmi-result__label { font-size: var(--fs-small); color: var(--clr-muted); }
+.bmi-result__value { font-family: var(--font-display); font-size: var(--fs-hero); line-height: 1; color: var(--clr-teal-deep); }
+.bmi-result__card[data-kind="under"] .bmi-result__value { color: #2f7fd6; }
+.bmi-result__card[data-kind="warn"]  .bmi-result__value { color: #c07a1c; }
+.bmi-result__card[data-kind="bad1"]  .bmi-result__value { color: #c96f63; }
+.bmi-result__card[data-kind="bad2"]  .bmi-result__value { color: #b23a2c; }
+.bmi-result__card[data-kind="bad3"]  .bmi-result__value { color: #8f2c20; }
+
+.bmi-result__tiles { display: grid; gap: var(--space-xs); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bmi-tile {
+  display: grid; gap: 2px; justify-items: center; text-align: center;
+  padding: .6em .8em; border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .5); box-shadow: inset 0 0 0 1px var(--clr-line);
+}
+.bmi-tile span { font-size: var(--fs-caption); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--clr-muted); }
+.bmi-tile b { font-family: var(--font-display); font-size: var(--fs-body); color: var(--clr-teal-deep); }
+
+.bmi-result__note {
+  padding: .6em .9em; border-radius: var(--radius-sm);
+  border-left: 3px solid var(--clr-emerald);
+  background: rgba(31, 189, 142, .12);
+  font-size: var(--fs-small); font-weight: 700; color: var(--clr-teal-deep);
+}
+.bmi-result__note[data-kind="under"] { border-color: #2f7fd6; background: rgba(47, 127, 214, .12); }
+.bmi-result__note[data-kind="warn"]  { border-color: #eeb64b; background: rgba(238, 182, 75, .14); }
+.bmi-result__note[data-kind="bad1"],
+.bmi-result__note[data-kind="bad2"],
+.bmi-result__note[data-kind="bad3"]  { border-color: #e2685a; background: rgba(226, 104, 90, .12); }
+
+.bmi-scale { display: grid; gap: 3px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.bmi-scale__seg {
+  display: grid; gap: 1px; justify-items: center; text-align: center;
+  padding: .45em .2em; border-radius: 8px;
+  font-size: var(--fs-caption); color: var(--clr-muted);
+  opacity: .5; transition: opacity var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.bmi-scale__seg b { font-size: var(--fs-caption); color: var(--clr-ink); }
+.bmi-scale__seg[data-kind="under"] { background: rgba(47, 127, 214, .16); }
+.bmi-scale__seg[data-kind="good"]  { background: rgba(31, 189, 142, .18); }
+.bmi-scale__seg[data-kind="warn"]  { background: rgba(238, 182, 75, .18); }
+.bmi-scale__seg[data-kind="bad1"]  { background: rgba(226, 104, 90, .14); }
+.bmi-scale__seg[data-kind="bad2"]  { background: rgba(226, 104, 90, .24); }
+.bmi-scale__seg[data-kind="bad3"]  { background: rgba(178, 58, 44, .30); }
+.bmi-scale__seg.is-active { opacity: 1; transform: translateY(-2px); box-shadow: inset 0 0 0 1.5px currentColor; }
+.bmi-result__dis { font-size: var(--fs-caption); color: var(--clr-muted); }
+
+[data-theme="dark"] .bmi-tile { background: rgba(18, 38, 30, .62); box-shadow: inset 0 0 0 1px rgba(160, 220, 195, .12); }
+[data-theme="dark"] .bmi-result__card { background: linear-gradient(135deg, rgba(24, 58, 45, .9), rgba(52, 211, 153, .14)); }
+[data-theme="dark"] .bmi-result__card[data-kind="under"] .bmi-result__value { color: #8fd0ff; }
+[data-theme="dark"] .bmi-result__card[data-kind="warn"]  .bmi-result__value { color: #f0c674; }
+[data-theme="dark"] .bmi-result__card[data-kind="bad1"]  .bmi-result__value { color: #ff9d92; }
+[data-theme="dark"] .bmi-result__card[data-kind="bad2"]  .bmi-result__value { color: #ff8a7a; }
+[data-theme="dark"] .bmi-result__card[data-kind="bad3"]  .bmi-result__value { color: #ff7a68; }
+[data-theme="dark"] .bmi-result__note { color: var(--clr-teal-deep); }
+[data-theme="dark"] .bmi-scale__seg b { color: var(--clr-ink); }
+
+@media (max-width: 560px) {
+  .bmi-result__tiles { grid-template-columns: minmax(0, 1fr); }
+  .bmi-scale { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ==========================================================================
+   37. ФИКСЫ: облачка цели + окно ИМТ (кнопки всегда видны)
+   ========================================================================== */
+/* Надписи возвращаем внутрь силуэта облачка */
+/* Данные — строго в визуальном центре силуэта на любом экране:
+   контент центрируется по всей коробке и сдвигается на 4% вниз,
+   в середину «массы» облака. Проценты больше не зависят от ширины. */
+.psc-cloud__inner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+  padding: 0 12%;
+  text-align: center;
+  transform: translateY(4%);
+}
+.psc-cloud__icon { width: 26px; height: 26px; margin-bottom: 0; }
+.psc-cloud__icon svg { width: 15px; height: 15px; }
+.psc-cloud__label { line-height: 1.2; }
+.psc-cloud__value { line-height: 1.15; }
+.psc-cloud__sub { line-height: 1.2; }
+/* Окно ИМТ: прокрутка вместо обрезки */
+#bmi-modal .modal__dialog {
+  overflow-y: auto;
+  max-height: min(92vh, 860px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--clr-tiffany) transparent;
+}
+#bmi-modal .modal__dialog::-webkit-scrollbar { width: 8px; }
+#bmi-modal .modal__dialog::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--clr-tiffany), var(--clr-teal));
+  border-radius: 999px;
+}
+
+/* Панель кнопок прибита к низу окна — «Рассчитать» видно всегда */
+#bmi-modal .st-wm__actions {
+  position: static;
+  margin: var(--space-2xs) 0 0;
+  padding: 0;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* ==========================================================================
+   38. ОБЛАЧКА: геометрический центр силуэта (окончательный фикс)
+   Силуэт симметричный (низ 55–185, центр 120), контент центрируется
+   по всей коробке и сдвигается на 6% вниз — в центр «массы» облака.
+   Специфичность .psc-grid .psc-cloud … перебивает старые правила 21/37.
+   ========================================================================== */
+.psc-grid .psc-cloud .psc-cloud__inner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+  padding: 0 10%;
+  margin: 0;
+  text-align: center;
+  transform: translateY(6%);
+}
+.psc-grid .psc-cloud .psc-cloud__icon { width: 26px; height: 26px; margin: 0; }
+.psc-grid .psc-cloud .psc-cloud__icon svg { width: 15px; height: 15px; }
+.psc-grid .psc-cloud .psc-cloud__label { line-height: 1.2; }
+.psc-grid .psc-cloud .psc-cloud__value { line-height: 1.15; }
+.psc-grid .psc-cloud .psc-cloud__sub { line-height: 1.2; }
+
+/* ==========================================================================
+   39. ФОН ПОД ОКНОМ НА ПРОФИЛЕ: облачка цели замирают вместе с ореолами
+   Плавающие облачка — живой слой под backdrop-filter окна. Пока окно
+   открыто (body.no-scroll), их дрейф останавливается, и размытая
+   подложка перестаёт подёргиваться. При закрытии облачка плывут дальше
+   с той же позиции — без скачка.
+   ========================================================================== */
+body.no-scroll .psc-cloud {
+  animation-play-state: paused;
+}
+/* ==========================================================================
+   40. ЛОГОТИП-КАРТИНКА: тот же размер и место, что у капли
+   Базовые 26×26, тень и hover берёт существующее правило .brand__mark;
+   здесь — вписать PNG без искажений и не дать ему сжиматься во flex-строке.
+   ========================================================================== */
+img.brand__mark {
+  object-fit: contain;
+  flex-shrink: 0;
+}

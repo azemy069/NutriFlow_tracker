@@ -2378,6 +2378,199 @@ function initWizard() {
   $('#plan-ok')?.addEventListener('click', applyPlan);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !root.hidden) wizardClose(); });
 }
+/* ------------------ 13. ИМТ (автономный запуск) ------------------ */
+(function () {
+  'use strict';
+  if (typeof initBmi === 'function') { initBmi(); return; }
+  const modal = $('#bmi-modal');
+  if (!modal) return;
+
+  const IH = 44, WH = 132, STEP = 150, BURST = 10;
+  const CATS = [
+    { kind: 'under', max: 18.5, label: 'Недостаточная', range: '< 18,5', note: 'Вес ниже нормы. Добавьте питательных блюд и следите за самочувствием.' },
+    { kind: 'good', max: 25, label: 'Норма', range: '18,5 – 24,9', note: 'Отличный результат, продолжайте в том же духе 🙂 Поддерживайте привычный режим питания и активности.' },
+    { kind: 'warn', max: 30, label: 'Избыточная', range: '25,0 – 29,9', note: 'Вес немного выше нормы. Мягкий дефицит калорий и регулярная активность вернут баланс.' },
+    { kind: 'bad1', max: 35, label: 'Ожирение I', range: '30,0 – 34,5', note: 'Показатель выше нормы. Это не приговор: начните с маленьких шагов и поддержки специалиста.' },
+    { kind: 'bad2', max: 40, label: 'Ожирение II', range: '35,0 – 39,9', note: 'Показатель заметно выше нормы. План питания и наблюдение специалиста помогут снизить риски.' },
+    { kind: 'bad3', max: Infinity, label: 'Ожирение III', range: '40,0 и выше', note: 'Показатель высокий. Пожалуйста, обсудите план снижения веса со специалистом — мы поможем вести дневник.' },
+  ];
+  const B = { wheels: null, sex: 'female', defaults: null };
+
+  function wheel(host, values, initial, onchange) {
+    if (!host) return null;
+    host.textContent = '';
+    const vp = document.createElement('div');
+    vp.className = 'wheel__viewport';
+    vp.tabIndex = 0;
+    vp.style.height = `${WH}px`;
+    host.style.height = `${WH}px`;
+    const padH = (WH - IH) / 2;
+    const pad = () => { const p = document.createElement('div'); p.className = 'wheel__pad'; p.style.height = `${padH}px`; return p; };
+    vp.append(pad());
+    values.forEach((v, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'wheel__item'; b.style.height = `${IH}px`;
+      b.dataset.i = String(i); b.textContent = String(v);
+      b.addEventListener('click', () => go(i));
+      vp.append(b);
+    });
+    vp.append(pad());
+    host.append(vp);
+    const w = { values, index: 0 };
+    const vis = () => vp.offsetParent !== null;
+    let animUntil = 0;
+    function paint() {
+      const c = vp.scrollTop / IH;
+      vp.querySelectorAll('.wheel__item').forEach((el) => {
+        const d = Math.abs(Number(el.dataset.i) - c);
+        el.classList.toggle('is-active', d < 0.5);
+        el.style.opacity = d < 0.5 ? '1' : d < 1.5 ? '.55' : '.28';
+      });
+      if (onchange) onchange();
+    }
+    function go(i, smooth = true) {
+      w.index = clamp(i, 0, values.length - 1);
+      animUntil = performance.now() + (smooth ? 300 : 60);
+      vp.scrollTo({ top: w.index * IH, behavior: smooth ? 'smooth' : 'auto' });
+      paint();
+    }
+    let snapT = 0;
+    vp.addEventListener('scroll', () => {
+      if (!vis()) return;
+      paint();
+      clearTimeout(snapT);
+      snapT = setTimeout(() => { if (vis() && performance.now() >= animUntil) go(Math.round(vp.scrollTop / IH), false); }, 130);
+    }, { passive: true });
+    let acc = 0, speed = 0, sustain = 0, lastT = 0, idleT = 0;
+    const resetBoost = () => { speed = 0; sustain = 0; };
+    vp.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      clearTimeout(idleT); idleT = setTimeout(resetBoost, 140);
+      const unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? WH : 1;
+      const delta = e.deltaY * unit;
+      if (!delta) return;
+      const now = performance.now();
+      const gap = Math.max(now - lastT, 4); lastT = now;
+      if (gap > 200) resetBoost();
+      if (acc && Math.sign(acc) !== Math.sign(delta)) acc = 0;
+      speed = speed * Math.pow(0.5, gap / 80);
+      speed = Math.max(speed * 0.6 + (Math.abs(delta) / gap) * 0.4, 0);
+      sustain = (gap < 120 && speed > 1.6) ? Math.min(sustain + 1, 30) : 0;
+      acc += delta;
+      if (Math.abs(acc) < STEP) return;
+      const mult = 1 + clamp((speed - 1.2) / 1.2, 0, 3) + clamp(sustain / 12, 0, 3);
+      const dir = acc > 0 ? 1 : -1;
+      const steps = clamp(Math.round((Math.abs(acc) / STEP) * mult), 1, BURST);
+      acc = 0;
+      go(w.index + dir * steps, steps <= 2);
+    }, { passive: false });
+    vp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); go(w.index + 1); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); go(w.index - 1); }
+      if (e.key === 'PageDown') { e.preventDefault(); go(w.index + 4); }
+      if (e.key === 'PageUp') { e.preventDefault(); go(w.index - 4); }
+      if (e.key === 'Home') { e.preventDefault(); go(0); }
+      if (e.key === 'End') { e.preventDefault(); go(values.length - 1); }
+    });
+    w.set = (v, smooth = false) => { const i = values.indexOf(v); go(i < 0 ? 0 : i, smooth); };
+    w.read = () => { if (vis()) w.index = clamp(Math.round(vp.scrollTop / IH), 0, values.length - 1); return values[w.index]; };
+    requestAnimationFrame(() => w.set(initial, false));
+    return w;
+  }
+
+  function defaults() {
+    const p = state.profile;
+    const lastW = (state.weight || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).pop();
+    const weight = lastW ? num0(lastW.kg) : (p && num0(p.weightKg) > 0 ? num0(p.weightKg) : 60);
+    return {
+      sex: p && p.sex === 'male' ? 'male' : 'female',
+      age: p && p.birth ? computeAge(p.birth) : 19,
+      height: p && num0(p.heightCm) > 0 ? num0(p.heightCm) : 164,
+      weight: clamp(weight, 20, 300),
+    };
+  }
+  function read() {
+    const w = B.wheels;
+    return { age: w.age.read(), height: w.hInt.read(), weight: clamp(w.wInt.read() + w.wDec.read() / 10, 20, 300) };
+  }
+  function preview() {
+    if (modal.hidden) return;
+    const v = read();
+    setTextSafe('#bmi-preview', `${v.age} лет · ${v.height} см · ${trimNum(v.weight)} кг`);
+  }
+  function sync() {
+    if (!B.wheels) return;
+    const d = B.defaults;
+    const apply = () => {
+      B.wheels.age.set(d.age);
+      B.wheels.hInt.set(Math.floor(d.height));
+      B.wheels.wInt.set(Math.floor(d.weight));
+      B.wheels.wDec.set(Math.round((d.weight - Math.floor(d.weight)) * 10));
+      preview();
+    };
+    apply(); requestAnimationFrame(apply);
+  }
+  function setSex(sex) {
+    B.sex = sex === 'male' ? 'male' : 'female';
+    $$('#bmi-sex .st-seg__btn').forEach((b) => b.classList.toggle('is-active', b.dataset.bmiSex === B.sex));
+  }
+  function normalBand(age, sex) {
+  if (age >= 65) return [22, 27];
+  return sex === 'male' ? [18.5, 25] : [18.5, 24.9];
+}
+function calc() {
+  const v = read();
+  const h2 = (v.height / 100) ** 2;
+  const value = v.weight / h2;
+  const cat = CATS.find((c) => value < c.max) || CATS[CATS.length - 1];
+  const [lo, hi] = normalBand(v.age, B.sex);
+  const card = $('#bmi-card'); if (card) card.dataset.kind = cat.kind;
+  setTextSafe('#bmi-value', trimNum(value));
+  setTextSafe('#bmi-category', cat.label);
+  setTextSafe('#bmi-range', `${trimNum(lo * h2)} – ${trimNum(hi * h2)} кг`);
+  const note = $('#bmi-note');
+  if (note) {
+    note.textContent = `${cat.note} Границы нормы учтены для пола: ${B.sex === 'male' ? 'мужской' : 'женский'}, возраст: ${v.age}.`;
+    note.dataset.kind = cat.kind;
+  }
+  const scale = $('#bmi-scale');
+  if (scale) scale.innerHTML = CATS.map((c) => `<span class="bmi-scale__seg${c.kind === cat.kind ? ' is-active' : ''}" data-kind="${c.kind}"><b>${c.range}</b>${c.label}</span>`).join('');
+  const box = $('#bmi-result'); if (box) box.hidden = false;
+} 
+  function reset() {
+    B.defaults = defaults();
+    setSex(B.defaults.sex);
+    sync();
+    const box = $('#bmi-result'); if (box) box.hidden = true;
+  }
+  function open() {
+    B.defaults = defaults();
+    modal.hidden = false;
+    document.body.classList.add('no-scroll');
+    if (!B.wheels) {
+      B.wheels = {
+        age: wheel($('[data-bmi-wheel="age"]'), range(10, 100), B.defaults.age, preview),
+        hInt: wheel($('[data-bmi-wheel="h-int"]'), range(100, 220), Math.floor(B.defaults.height), preview),
+        wInt: wheel($('[data-bmi-wheel="w-int"]'), range(20, 300), Math.floor(B.defaults.weight), preview),
+        wDec: wheel($('[data-bmi-wheel="w-dec"]'), range(0, 9), 0, preview),
+      };
+    }
+    setSex(B.defaults.sex);
+    sync();
+    const box = $('#bmi-result'); if (box) box.hidden = true;
+  }
+  function close() {
+    modal.hidden = true;
+    document.body.classList.remove('no-scroll');
+  }
+
+  $('#bmi-btn')?.addEventListener('click', open);
+  modal.addEventListener('click', (e) => { if (e.target.closest('[data-bmi-close]')) close(); });
+  $('#bmi-sex')?.addEventListener('click', (e) => { const b = e.target.closest('[data-bmi-sex]'); if (b) setSex(b.dataset.bmiSex); });
+  $('#bmi-calc')?.addEventListener('click', calc);
+  $('#bmi-reset')?.addEventListener('click', reset);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });
+})();
 
 /* ------------------ 12. САЙДБАР, СОБЫТИЯ, СИНХРОНИЗАЦИЯ ------------------ */
 function initSidebar() {

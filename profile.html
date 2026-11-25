@@ -2,226 +2,207 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Профиль и цели — NutriFlow</title>
+  <meta name="description" content="Профиль NutriFlow: аккаунт, цель по калориям и воде, параметры тела и калькулятор ИМТ.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Unbounded:wght@500;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="styles.css">
   <script src="data/reveal.js"></script>
 </head>
-<body class="page-profile">
+<body>
   <div class="bg-aura" aria-hidden="true"></div>
 
-  <aside class="sidebar glass" id="sidebar">
+  <!-- ===== Сайдбар ===== -->
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar__head">
-      <a href="index.html" class="brand">
-        <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8 6 4 10 4 14a8 8 0 0 0 16 0c0-4-4-8-8-12z"/></svg>
-        NutriFlow
+      <a class="brand" href="index.html">
+        <img class="brand__mark" src="images/logo.png" alt="" width="26" height="26">
+        <span>NutriFlow</span>
       </a>
-      <button class="sidebar__close" id="sidebar-close" aria-label="Закрыть меню"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <button class="sidebar__close" id="sidebar-close" type="button" aria-label="Закрыть меню">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
     </div>
-    <nav class="sidebar__nav">
+    <nav aria-label="Основная навигация">
       <ul class="sidebar__list">
-        <li><a href="index.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Главная</a></li>
-        <li><a href="diary.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Дневник питания</a></li>
-        <li><a href="planner.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Планировщик</a></li>
-        <li><a href="stats.html" class="sidebar__link"><svg class="sidebar__icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Статистика</a></li>
-        <li><a href="profile.html" class="sidebar__link is-active"><svg class="sidebar__icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль и цели</a></li>
+        <li><a class="sidebar__link" href="index.html"><svg class="sidebar__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5M5 9.5V21h5v-6h4v6h5V9.5"/></svg><span>Главная</span></a></li>
+        <li><a class="sidebar__link" href="diary.html"><svg class="sidebar__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 12h6M9 16h6"/></svg><span>Дневник питания</span></a></li>
+        <li><a class="sidebar__link" href="planner.html"><svg class="sidebar__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Планировщик</span></a></li>
+        <li><a class="sidebar__link" href="stats.html"><svg class="sidebar__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span>Статистика</span></a></li>
+        <li><a class="sidebar__link is-active" href="profile.html" aria-current="page"><svg class="sidebar__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Профиль и цели</span></a></li>
       </ul>
     </nav>
     <div class="sidebar__foot">
-      <a href="diary.html" class="sidebar__cta">Начать дневник</a>
+      <a class="sidebar__cta" href="diary.html">Начать дневник</a>
       <p class="sidebar__note">Дипломный проект · 2026</p>
     </div>
   </aside>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
+  <!-- ===== Топбар (мобильные) ===== -->
   <header class="topbar">
-    <button class="topbar__burger" id="sidebar-open" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-    <span class="topbar__title">Профиль</span>
+    <button class="topbar__burger" id="sidebar-open" type="button" aria-label="Открыть меню">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <span class="topbar__title">NutriFlow</span>
     <span class="topbar__date" id="today-date"></span>
   </header>
 
   <main class="content">
     <section class="profile">
 
-      <!-- Экран входа / регистрации -->
-      <div id="auth-view" class="auth glass">
+      <!-- ===== Вход / регистрация ===== -->
+      <article class="auth glass" id="auth-view">
+        <span class="overline">Профиль</span>
         <h1 class="auth__title">Профиль —<br>Личный кабинет</h1>
         <p class="auth__subtitle">Войдите в аккаунт и отслеживайте ваш прогресс вместе с NutriFlow</p>
         <div class="auth__modes">
-          <button type="button" class="btn btn--ghost" id="auth-login-btn">Вход в аккаунт</button>
-          <button type="button" class="btn btn--primary" id="auth-register-btn">Регистрация аккаунта</button>
+          <button class="btn btn--ghost" type="button" id="auth-login-btn">Вход в аккаунт</button>
+          <button class="btn btn--primary" type="button" id="auth-register-btn">Регистрация аккаунта</button>
         </div>
-        <form class="auth__form" id="auth-form" hidden autocomplete="off">
+        <form class="auth__form" id="auth-form" hidden novalidate>
           <div class="field" id="auth-name-field" hidden>
             <label class="field__label" for="auth-name">Имя</label>
-            <input class="field__input" type="text" id="auth-name" placeholder="Как к вам обращаться">
+            <input class="field__input" id="auth-name" type="text" autocomplete="name" placeholder="Как к вам обращаться">
           </div>
           <div class="field">
             <label class="field__label" for="auth-email">Почта</label>
-            <input class="field__input" type="email" id="auth-email" placeholder="name@example.com" required>
+            <input class="field__input" id="auth-email" type="email" autocomplete="email" placeholder="you@example.com">
           </div>
           <div class="field">
             <label class="field__label" for="auth-pass">Пароль</label>
-            <input class="field__input" type="password" id="auth-pass" placeholder="Не короче 4 символов" required>
+            <input class="field__input" id="auth-pass" type="password" autocomplete="current-password" placeholder="Минимум 4 символа">
           </div>
-          <div class="auth__error" id="auth-error" hidden></div>
-          <button type="button" class="btn btn--ghost auth__submit" id="auth-submit">Войти</button>
-          <p class="auth__hint">Впервые у нас? Нажмите «Регистрация аккаунта» и заполните три поля — сохраним имя, почту и пароль в базе, чтобы вы могли войти позже.</p>
+          <p class="auth__error" id="auth-error" hidden></p>
+          <button class="btn btn--ghost auth__submit" type="submit" id="auth-submit">Войти</button>
         </form>
-      </div>
+        <p class="auth__hint">Впервые у нас? Нажмите «Регистрация аккаунта» и заполните три поля — сохраним имя, почту и пароль в базе, чтобы вы могли войти позже.</p>
+      </article>
 
-      <!-- Экран профиля -->
-      <div id="profile-view" class="profile__body" hidden>
-        <div class="profile__head glass">
+      <!-- ===== Профиль после входа ===== -->
+      <div class="profile__body" id="profile-view" hidden>
+        <header class="profile__head glass">
           <div class="profile__person">
-            <div class="avatar">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="2"/>
-                <circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
-              </svg>
-            </div>
+            <span class="avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-7 2-7 5v1h14v-1c0-3-3-5-7-5z"/></svg>
+            </span>
             <div>
-              <h2 class="profile__name" id="user-name">—</h2>
+              <h1 class="profile__name" id="user-name">—</h1>
               <p class="profile__email" id="user-email">—</p>
             </div>
           </div>
           <div class="profile__actions">
-            <button type="button" class="btn btn--ghost" id="goal-btn">Изменить цель</button>
-            <button type="button" class="btn btn--ghost" id="logout-btn">Выйти из аккаунта</button>
+            <button class="btn btn--ghost" type="button" id="goal-btn">Изменить цель</button>
+            <button class="btn btn--ghost" type="button" id="bmi-btn">ИМТ</button>
+            <button class="btn btn--ghost" type="button" id="logout-btn">Выйти из аккаунта</button>
           </div>
-          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Включить тёмную тему" title="Включить тёмную тему">
+          <button class="theme-toggle" type="button" id="theme-toggle" aria-label="Переключить тему">
             <svg class="theme-toggle__sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
             <svg class="theme-toggle__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
           </button>
-        </div>
+        </header>
 
-        <!-- ===== СВОДКА ЦЕЛИ: ОБЛАЧКИ ===== -->
+        <!-- Сводка цели: облачка -->
         <section class="profile-summary glass" id="profile-summary" hidden>
-          <header class="psc-head">
+          <div class="psc-head">
             <div class="psc-head__text">
-              <span class="profile-summary__badge" id="summary-goal">—</span>
+              <span class="overline" id="summary-goal">—</span>
               <h2 class="psc-title">Ваша цель</h2>
               <p class="psc-sub">Каждое облачко — параметр из анкеты. Пересчитывается после каждого прохождения «Изменить цель».</p>
             </div>
             <svg class="psc-head__art" viewBox="0 0 96 96" aria-hidden="true">
-              <circle cx="48" cy="52" r="30" fill="none" stroke="currentColor" stroke-width="3" opacity=".28"/>
-              <circle cx="48" cy="52" r="20" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/>
-              <circle cx="48" cy="52" r="9" fill="currentColor" opacity=".85"/>
-              <path d="M48 52 L78 22" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-              <path d="M78 22 l-12 2 M78 22 l-2 12" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-              <circle cx="16" cy="24" r="3.5" fill="currentColor" opacity=".4"/>
-              <circle cx="84" cy="76" r="4.5" fill="currentColor" opacity=".3"/>
+              <circle cx="48" cy="48" r="34" fill="none" stroke="currentColor" stroke-width="3" opacity=".35"/>
+              <circle cx="48" cy="48" r="22" fill="none" stroke="currentColor" stroke-width="3" opacity=".6"/>
+              <circle cx="48" cy="48" r="9" fill="currentColor"/>
+              <path d="M48 48 74 22M74 22h-12M74 22v12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
             </svg>
-          </header>
-
+          </div>
           <div class="psc-grid">
-            <!-- Рост -->
-            <article class="psc-cloud">
+            <div class="psc-cloud">
               <svg class="psc-cloud__shape" viewBox="0 0 240 150" preserveAspectRatio="none" aria-hidden="true">
-                <path class="psc-cloud__body" d="M46 142C22 142 6 126 6 106c0-16 11-30 26-34-2-22 15-40 38-40 10-18 29-28 50-28 23 0 43 12 52 30 24-2 42 14 42 36 14 6 22 20 22 36 0 20-16 36-40 36Z"/>
-                <path class="psc-cloud__shine" d="M40 62c6-16 22-26 40-24"/>
+                <path class="psc-cloud__body" d="M55 128C32 128 16 111 16 91C16 72 30 56 49 53C55 31 76 16 101 16C124 16 144 28 153 46C159 43 166 41 173 41C199 41 222 62 222 88C222 110 205 128 185 128Z"/>
+                <path class="psc-cloud__shine" d="M58 50c8-16 24-26 42-26"/>
               </svg>
               <div class="psc-cloud__inner">
-                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="18" rx="1.5"/><path d="M9 7h3M9 11h3M9 15h3"/></svg></span>
+                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg></span>
                 <span class="psc-cloud__label">Рост</span>
                 <strong class="psc-cloud__value" id="summary-height">—</strong>
               </div>
-            </article>
-
-            <!-- Текущий вес -->
-            <article class="psc-cloud">
+            </div>
+            <div class="psc-cloud">
               <svg class="psc-cloud__shape" viewBox="0 0 240 150" preserveAspectRatio="none" aria-hidden="true">
-                <path class="psc-cloud__body" d="M46 142C22 142 6 126 6 106c0-16 11-30 26-34-2-22 15-40 38-40 10-18 29-28 50-28 23 0 43 12 52 30 24-2 42 14 42 36 14 6 22 20 22 36 0 20-16 36-40 36Z"/>
-                <path class="psc-cloud__shine" d="M40 62c6-16 22-26 40-24"/>
+                <path class="psc-cloud__body" d="M55 128C32 128 16 111 16 91C16 72 30 56 49 53C55 31 76 16 101 16C124 16 144 28 153 46C159 43 166 41 173 41C199 41 222 62 222 88C222 110 205 128 185 128Z"/>
+                <path class="psc-cloud__shine" d="M58 50c8-16 24-26 42-26"/>
               </svg>
               <div class="psc-cloud__inner">
-                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3.5"/><path d="M8 11a4 4 0 0 1 8 0"/><path d="M12 11l2.5-2.5"/></svg></span>
+                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v4l3 2"/></svg></span>
                 <span class="psc-cloud__label">Текущий вес</span>
                 <strong class="psc-cloud__value" id="summary-weight">—</strong>
               </div>
-            </article>
-
-            <!-- Желаемый вес -->
-            <article class="psc-cloud psc-cloud--target">
+            </div>
+            <div class="psc-cloud psc-cloud--target">
               <svg class="psc-cloud__shape" viewBox="0 0 240 150" preserveAspectRatio="none" aria-hidden="true">
-                <path class="psc-cloud__body" d="M46 142C22 142 6 126 6 106c0-16 11-30 26-34-2-22 15-40 38-40 10-18 29-28 50-28 23 0 43 12 52 30 24-2 42 14 42 36 14 6 22 20 22 36 0 20-16 36-40 36Z"/>
-                <path class="psc-cloud__shine" d="M40 62c6-16 22-26 40-24"/>
+                <path class="psc-cloud__body" d="M55 128C32 128 16 111 16 91C16 72 30 56 49 53C55 31 76 16 101 16C124 16 144 28 153 46C159 43 166 41 173 41C199 41 222 62 222 88C222 110 205 128 185 128Z"/>
+                <path class="psc-cloud__shine" d="M58 50c8-16 24-26 42-26"/>
               </svg>
               <div class="psc-cloud__inner">
-                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span>
+                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg></span>
                 <span class="psc-cloud__label">Желаемый вес</span>
                 <strong class="psc-cloud__value" id="summary-target">—</strong>
               </div>
-            </article>
-
-            <!-- Темп -->
-            <article class="psc-cloud">
+            </div>
+            <div class="psc-cloud">
               <svg class="psc-cloud__shape" viewBox="0 0 240 150" preserveAspectRatio="none" aria-hidden="true">
-                <path class="psc-cloud__body" d="M46 142C22 142 6 126 6 106c0-16 11-30 26-34-2-22 15-40 38-40 10-18 29-28 50-28 23 0 43 12 52 30 24-2 42 14 42 36 14 6 22 20 22 36 0 20-16 36-40 36Z"/>
-                <path class="psc-cloud__shine" d="M40 62c6-16 22-26 40-24"/>
+                <path class="psc-cloud__body" d="M55 128C32 128 16 111 16 91C16 72 30 56 49 53C55 31 76 16 101 16C124 16 144 28 153 46C159 43 166 41 173 41C199 41 222 62 222 88C222 110 205 128 185 128Z"/>
+                <path class="psc-cloud__shine" d="M58 50c8-16 24-26 42-26"/>
               </svg>
               <div class="psc-cloud__inner">
-                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24"><path d="M13 2 L5 13h6l-1 9 8-11h-6z"/></svg></span>
+                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span>
                 <span class="psc-cloud__label">Темп</span>
                 <strong class="psc-cloud__value" id="summary-pace">—</strong>
                 <span class="psc-cloud__sub" id="summary-pace-sub"></span>
               </div>
-            </article>
-
-            <!-- Образ жизни -->
-            <article class="psc-cloud">
+            </div>
+            <div class="psc-cloud">
               <svg class="psc-cloud__shape" viewBox="0 0 240 150" preserveAspectRatio="none" aria-hidden="true">
-                <path class="psc-cloud__body" d="M46 142C22 142 6 126 6 106c0-16 11-30 26-34-2-22 15-40 38-40 10-18 29-28 50-28 23 0 43 12 52 30 24-2 42 14 42 36 14 6 22 20 22 36 0 20-16 36-40 36Z"/>
-                <path class="psc-cloud__shine" d="M40 62c6-16 22-26 40-24"/>
+                <path class="psc-cloud__body" d="M55 128C32 128 16 111 16 91C16 72 30 56 49 53C55 31 76 16 101 16C124 16 144 28 153 46C159 43 166 41 173 41C199 41 222 62 222 88C222 110 205 128 185 128Z"/>
+                <path class="psc-cloud__shine" d="M58 50c8-16 24-26 42-26"/>
               </svg>
               <div class="psc-cloud__inner">
-                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="2.2"/><path d="M13 7v5.5M13 12.5l-3.5 6.5M13 12.5l3.5 4.5M8 10l5-2 4.5 2.5"/></svg></span>
+                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="3"/><path d="M12 9v6M8 21l4-6 4 6M6 12h12"/></svg></span>
                 <span class="psc-cloud__label">Образ жизни</span>
                 <strong class="psc-cloud__value psc-cloud__value--text" id="summary-activity">—</strong>
               </div>
-            </article>
-
-            <!-- Дата цели -->
-            <article class="psc-cloud psc-cloud--date">
+            </div>
+            <div class="psc-cloud">
               <svg class="psc-cloud__shape" viewBox="0 0 240 150" preserveAspectRatio="none" aria-hidden="true">
-                <path class="psc-cloud__body" d="M46 142C22 142 6 126 6 106c0-16 11-30 26-34-2-22 15-40 38-40 10-18 29-28 50-28 23 0 43 12 52 30 24-2 42 14 42 36 14 6 22 20 22 36 0 20-16 36-40 36Z"/>
-                <path class="psc-cloud__shine" d="M40 62c6-16 22-26 40-24"/>
+                <path class="psc-cloud__body" d="M55 128C32 128 16 111 16 91C16 72 30 56 49 53C55 31 76 16 101 16C124 16 144 28 153 46C159 43 166 41 173 41C199 41 222 62 222 88C222 110 205 128 185 128Z"/>
+                <path class="psc-cloud__shine" d="M58 50c8-16 24-26 42-26"/>
               </svg>
               <div class="psc-cloud__inner">
-                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg></span>
+                <span class="psc-cloud__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/></svg></span>
                 <span class="psc-cloud__label">Дата цели</span>
                 <strong class="psc-cloud__value psc-cloud__value--text" id="summary-date">—</strong>
               </div>
-            </article>
+            </div>
           </div>
-
-          <footer class="psc-foot">
-            <span class="psc-chip psc-chip--kcal">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 3-6 .5 2 2 2 2 2z"/></svg>
-              <span id="summary-kcal">—</span>
-            </span>
-            <span class="psc-chip psc-chip--water">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>
-              <span id="summary-water">—</span>
-            </span>
+          <div class="psc-foot">
+            <span class="psc-chip psc-chip--kcal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 4 6 6 6 10a6 6 0 0 1-12 0c0-3 2-4 3-7 1 2 2 3 3 3z"/></svg><span id="summary-kcal">—</span></span>
+            <span class="psc-chip psc-chip--water"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C8 8 6 11 6 14a6 6 0 0 0 12 0c0-3-2-6-6-11z"/></svg><span id="summary-water">—</span></span>
             <button class="btn btn--ghost psc-edit" type="button" id="summary-edit">Изменить цель</button>
-          </footer>
+          </div>
+          <span class="visually-hidden" id="summary-note"></span>
         </section>
 
         <!-- Пустое состояние -->
-        <section class="profile-summary glass" id="profile-empty" hidden>
-          <div class="psc-head">
-            <div class="psc-head__text">
-              <span class="profile-summary__badge">Старт</span>
-              <h2 class="psc-title">Цель ещё не настроена</h2>
-              <p class="psc-sub">Пройдите короткий мастер: цель, пол, дата рождения, рост, вес, желаемый вес, образ жизни и темп. NutriFlow рассчитает калории, воду и дату достижения цели.</p>
-            </div>
-          </div>
-          <button class="btn btn--primary" id="summary-setup" type="button">Настроить цель</button>
+        <section class="profile-summary glass" id="profile-empty">
+          <span class="overline">Старт</span>
+          <h2 class="psc-title">Цель ещё не настроена</h2>
+          <p class="psc-sub">Пройдите короткий мастер: цель, пол, дата рождения, рост, вес, желаемый вес, образ жизни и темп. NutriFlow рассчитает калории, воду и дату достижения цели.</p>
+          <button class="btn btn--primary" type="button" id="summary-setup">Настроить цель</button>
         </section>
       </div>
     </section>
@@ -232,14 +213,16 @@
     <span>Сделано с заботой о вашем рационе</span>
   </footer>
 
-  <!-- ===== МАСТЕР ЦЕЛИ ===== -->
-  <div class="wizard" id="goal-wizard" hidden role="dialog" aria-modal="true" aria-label="Постановка цели">
+  <!-- ===== Мастер цели ===== -->
+  <div class="wizard" id="goal-wizard" hidden>
     <div class="wizard__veil" data-wizard-close></div>
-    <div class="wizard__sheet">
-      <header class="wizard__top">
-        <button class="wizard__back" id="wizard-back" type="button" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
-        <div class="wizard__progress" aria-hidden="true"><span class="wizard__progress-fill" id="wizard-progress"></span></div>
-      </header>
+    <div class="wizard__sheet" role="dialog" aria-modal="true" aria-label="Мастер постановки цели">
+      <div class="wizard__top">
+        <button class="wizard__back" id="wizard-back" type="button" aria-label="Назад">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <div class="wizard__progress"><span class="wizard__progress-fill" id="wizard-progress"></span></div>
+      </div>
 
       <section class="wizard__step" data-step="1">
         <h2 class="wizard__title">Какая у тебя цель?</h2>
@@ -261,10 +244,10 @@
       <section class="wizard__step" data-step="3" hidden>
         <h2 class="wizard__title">Дата рождения</h2>
         <div class="wheel-row">
+          <span class="wheel-row__pill" aria-hidden="true"></span>
           <div class="wheel" data-wheel="b-day"></div>
           <div class="wheel" data-wheel="b-month"></div>
           <div class="wheel" data-wheel="b-year"></div>
-          <span class="wheel-row__pill" aria-hidden="true"></span>
         </div>
         <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
       </section>
@@ -272,9 +255,11 @@
       <section class="wizard__step" data-step="4" hidden>
         <h2 class="wizard__title">Рост</h2>
         <div class="wheel-row">
-          <div class="wheel" data-wheel="h-int"></div><span class="wheel-row__static">,</span>
-          <div class="wheel" data-wheel="h-dec"></div><span class="wheel-row__static">см</span>
           <span class="wheel-row__pill" aria-hidden="true"></span>
+          <div class="wheel" data-wheel="h-int"></div>
+          <span class="wheel-row__static">,</span>
+          <div class="wheel" data-wheel="h-dec"></div>
+          <span class="wheel-row__static">см</span>
         </div>
         <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
       </section>
@@ -282,9 +267,11 @@
       <section class="wizard__step" data-step="5" hidden>
         <h2 class="wizard__title">Вес</h2>
         <div class="wheel-row">
-          <div class="wheel" data-wheel="w-int"></div><span class="wheel-row__static">,</span>
-          <div class="wheel" data-wheel="w-dec"></div><span class="wheel-row__static">кг</span>
           <span class="wheel-row__pill" aria-hidden="true"></span>
+          <div class="wheel" data-wheel="w-int"></div>
+          <span class="wheel-row__static">,</span>
+          <div class="wheel" data-wheel="w-dec"></div>
+          <span class="wheel-row__static">кг</span>
         </div>
         <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
       </section>
@@ -292,9 +279,11 @@
       <section class="wizard__step" data-step="6" hidden>
         <h2 class="wizard__title">Целевой вес?</h2>
         <div class="wheel-row">
-          <div class="wheel" data-wheel="t-int"></div><span class="wheel-row__static">,</span>
-          <div class="wheel" data-wheel="t-dec"></div><span class="wheel-row__static">кг</span>
           <span class="wheel-row__pill" aria-hidden="true"></span>
+          <div class="wheel" data-wheel="t-int"></div>
+          <span class="wheel-row__static">,</span>
+          <div class="wheel" data-wheel="t-dec"></div>
+          <span class="wheel-row__static">кг</span>
         </div>
         <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
       </section>
@@ -312,45 +301,117 @@
       <section class="wizard__step" data-step="8" hidden>
         <h2 class="wizard__title">Темп изменений:</h2>
         <div class="pace">
-          <p class="pace__value" id="pace-value">0,5 кг/неделя</p>
-          <p class="pace__caption" id="pace-caption">Сбалансировано</p>
-          <input class="pace__slider" id="pace-slider" type="range" min="0.1" max="1" step="0.1" value="0.5" aria-label="Темп изменений, килограммов в неделю">
+          <span class="pace__value" id="pace-value">0,5 кг/неделя</span>
+          <span class="pace__caption" id="pace-caption">Сбалансировано</span>
+          <input class="pace__slider" id="pace-slider" type="range" min="0.1" max="1" step="0.1" value="0.5" aria-label="Темп изменения веса, кг в неделю">
         </div>
         <button class="btn btn--primary wizard__next" type="button" data-wizard-next>Далее</button>
       </section>
 
       <section class="wizard__step wizard__step--final" data-step="9" hidden>
-        <div class="wizard__chart" id="wizard-chart" aria-hidden="true"></div>
-        <div class="wizard__chart-months" id="wizard-months"></div>
-        <p class="wizard__result-label">Ваш желаемый вес</p>
-        <p class="wizard__result-weight" id="wizard-result-weight">— кг</p>
+        <span class="wizard__result-label">Ваш желаемый вес</span>
+        <strong class="wizard__result-weight" id="wizard-result-weight">— кг</strong>
         <span class="wizard__result-badge">Ты сможешь!</span>
-        <p class="overline">Ваш индивидуальный план</p>
-        <h3 class="wizard__result-plan" id="wizard-result-date">—</h3>
-        <p class="wizard__result-kcal" id="wizard-result-kcal"></p>
-        <p class="wizard__result-kcal" id="wizard-result-water"></p>
+        <div class="wizard__chart" id="wizard-chart"></div>
+        <div class="wizard__chart-months" id="wizard-months"></div>
+        <p class="wizard__result-plan" id="wizard-result-date">Ваш индивидуальный план</p>
+        <p class="wizard__result-kcal" id="wizard-result-kcal">—</p>
+        <p class="wizard__result-kcal" id="wizard-result-water">—</p>
         <p class="wizard__result-note" id="wizard-result-note" hidden></p>
         <button class="btn wizard__finish wizard__finish--go" type="button" data-wizard-finish>Поехали!</button>
       </section>
     </div>
   </div>
 
-  <!-- ===== ОКНО ПЛАНА ===== -->
-  <div class="modal" id="plan-modal" hidden role="dialog" aria-modal="true" aria-label="Ваш индивидуальный план">
+  <!-- ===== Окно плана ===== -->
+  <div class="modal" id="plan-modal" hidden>
     <div class="modal__backdrop"></div>
-    <div class="modal__dialog modal__dialog--mini glass">
-      <h3 class="modal__mini-title">Ваш индивидуальный план</h3>
+    <div class="modal__dialog glass modal__dialog--mini" role="dialog" aria-modal="true" aria-labelledby="plan-title">
+      <h2 class="modal__mini-title" id="plan-title">Ваш индивидуальный план</h2>
       <p class="plan__line">Питаться на <strong id="plan-kcal">—</strong> ккал в день</p>
       <p class="plan__line">Пить <strong id="plan-water">—</strong> л воды в день</p>
       <p class="plan__note" id="plan-note"></p>
-      <div class="modal__mini-actions"><button class="btn btn--primary" id="plan-ok" type="button">ОК</button></div>
+      <button class="btn btn--primary" type="button" id="plan-ok">ОК</button>
+    </div>
+  </div>
+
+  <!-- ===== ИМТ: окно-близнец окна веса из статистики ===== -->
+  <div class="modal" id="bmi-modal" hidden>
+    <div class="modal__backdrop" data-bmi-close></div>
+    <div class="modal__dialog glass st-wm" role="dialog" aria-modal="true" aria-labelledby="bmi-title">
+      <header class="modal__head">
+        <h2 class="modal__mini-title" id="bmi-title">Индекс массы тела</h2>
+        <button class="btn-soft" type="button" data-bmi-close>Закрыть</button>
+      </header>
+
+      <div class="st-wm__block">
+        <span class="st-wm__label">Ваш пол</span>
+        <div class="st-seg st-seg--wide" id="bmi-sex">
+          <button class="st-seg__btn is-active" type="button" data-bmi-sex="female">Женский</button>
+          <button class="st-seg__btn" type="button" data-bmi-sex="male">Мужской</button>
+        </div>
+      </div>
+
+      <div class="st-wm__block">
+        <span class="st-wm__label">Возраст</span>
+        <div class="st-wm__wheels">
+          <div class="wheel-row">
+            <span class="wheel-row__pill" aria-hidden="true"></span>
+            <div class="wheel" data-bmi-wheel="age"></div>
+            <span class="wheel-row__static">лет</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="st-wm__block">
+        <span class="st-wm__label">Рост</span>
+        <div class="st-wm__wheels">
+          <div class="wheel-row">
+            <span class="wheel-row__pill" aria-hidden="true"></span>
+            <div class="wheel" data-bmi-wheel="h-int"></div>
+            <span class="wheel-row__static">см</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="st-wm__block">
+        <span class="st-wm__label">Вес</span>
+        <div class="st-wm__wheels">
+          <div class="wheel-row">
+            <span class="wheel-row__pill" aria-hidden="true"></span>
+            <div class="wheel" data-bmi-wheel="w-int"></div>
+            <span class="wheel-row__static">,</span>
+            <div class="wheel" data-bmi-wheel="w-dec"></div>
+            <span class="wheel-row__static">кг</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="st-wm__preview" id="bmi-preview">—</p>
+
+      <div class="bmi-result" id="bmi-result" hidden>
+        <div class="bmi-result__card" id="bmi-card" data-kind="good">
+          <span class="bmi-result__label">Ваш индекс массы тела</span>
+          <strong class="bmi-result__value" id="bmi-value">—</strong>
+        </div>
+        <div class="bmi-result__tiles">
+          <div class="bmi-tile"><span>Категория</span><b id="bmi-category">—</b></div>
+          <div class="bmi-tile"><span>Норма веса для роста</span><b id="bmi-range">—</b></div>
+        </div>
+        <p class="bmi-result__note" id="bmi-note" data-kind="good">—</p>
+        <div class="bmi-scale" id="bmi-scale"></div>
+        <p class="bmi-result__dis">ИМТ — справочный показатель: он не учитывает состав тела и не заменяет консультацию специалиста.</p>
+      </div>
+
+      <div class="st-wm__actions">
+        <button class="btn-soft" type="button" id="bmi-reset">Сбросить</button>
+        <button class="btn btn--primary" type="button" id="bmi-calc">Рассчитать ИМТ</button>
+      </div>
     </div>
   </div>
 
   <script src="data/products.js"></script>
   <script src="data/barcodes.js"></script>
-  <script src="data/barcode-sources.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-  <script src="data/script.js?v=26"></script>
+  <script src="data/script.js"></script>
 </body>
 </html>
