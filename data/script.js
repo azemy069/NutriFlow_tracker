@@ -1935,10 +1935,17 @@ function renderProfileSummary() {
   empty.hidden = true;
   card.hidden = false;
   card.dataset.goal = p.goal || 'lose';
-  const plan = computePlanData({ ...p, pace: p.paceKgWeek });
+    /* Текущий вес берём из последней записи веса (её пишет статистика),
+    а не из анкеты мастера — иначе облачко и план отстают от графика. */
+  const lastWeight = (Array.isArray(state.weight) ? state.weight : [])
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .pop();
+  const currentKg = lastWeight && num0(lastWeight.kg) > 0 ? num0(lastWeight.kg) : num0(p.weightKg);
+  const plan = computePlanData({ ...p, weightKg: currentKg, pace: p.paceKgWeek });
   setTextSafe('#summary-goal', GOAL_LABELS[p.goal] || 'Цель');
   setTextSafe('#summary-height', `${trimNum(p.heightCm)} см`);
-  setTextSafe('#summary-weight', `${trimNum(p.weightKg)} кг`);
+  setTextSafe('#summary-weight', `${trimNum(currentKg)} кг`); 
   setTextSafe('#summary-target', `${trimNum(p.targetKg)} кг`);
   setTextSafe('#summary-pace', `${trimNum(p.paceKgWeek)} кг/нед`);
   setTextSafe('#summary-pace-sub', paceCaption(p.paceKgWeek));

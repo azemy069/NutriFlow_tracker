@@ -1,11 +1,19 @@
 /* ==========================================================================
-   NUTRIFLOW · ПОИСК ТОВАРОВ ПО ШТРИХКОДУ (версия 2)
+   NUTRIFLOW · ПОИСК ТОВАРОВ ПО ШТРИХКОДУ (версия 3)
    Правила достоверности:
-   1) КБЖУ автоматически подставляются ТОЛЬКО при точном совпадении кода.
-   2) Поиск по названию никогда не подставляет КБЖУ молча — он возвращает
-      список кандидатов, среди которых выбирает пользователь.
-   3) Приоритет — товары, продающиеся в России, и русские названия.
-   4) Код проверяется во всех нормализациях: EAN-13, EAN-8, UPC-A, ITF-14.
+   КБЖУ автоматически подставляются ТОЛЬКО при точном совпадении кода.
+   Поиск по названию никогда не подставляет КБЖУ молча — он возвращает
+   список кандидатов, среди которых выбирает пользователь.
+   Приоритет — товары, продающиеся в России, и русские названия.
+   Код проверяется во всех нормализациях: EAN-13, EAN-8, UPC-A, ITF-14.
+
+   ИСПРАВЛЕНО В ВЕРСИИ 3:
+   · Open Food Facts API v2 отдаёт status:"success" (v0/v1 отдавали 1).
+     Теперь принимаются оба варианта — точный поиск по коду снова работает.
+   · Имя товара ищется и в языковых полях (en/de/fr/es/it/pl/uk),
+     поэтому вместо «Товар 7622201706289» подставляется настоящее название.
+   · Безымянные записи без КБЖУ не попадают в кандидаты и не блокируют
+     дальнейшие источники каскада.
    ========================================================================== */
 'use strict';
 
@@ -17,7 +25,11 @@ const BarcodeSources = (() => {
     beauty: 'https://world.openbeautyfacts.org',
     pet: 'https://world.openpetfoodfacts.org',
   };
+
+  /* Языковые варианты имени добавлены: у части товаров OFF имя лежит
+     только в product_name_en/de/… , а не в product_name_ru/product_name */
   const FIELDS = 'code,product_name,product_name_ru,generic_name,generic_name_ru,brands,'
+    + 'product_name_en,product_name_de,product_name_fr,product_name_es,product_name_it,product_name_pl,product_name_uk,'
     + 'nutriments,serving_quantity,serving_size,product_quantity,quantity,categories_tags,'
     + 'countries_tags,stores,image_front_small_url';
 
@@ -25,8 +37,10 @@ const BarcodeSources = (() => {
   const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const digits = (s) => String(s || '').replace(/\D/g, '');
   const norm = (s) => clean(s).toLowerCase().replace(/ё/g, 'е');
-  const usdaKey = () => localStorage.getItem('nutriflow.usdaKey') || 'DEMO_KEY';
-  const isDebug = () => /[?&]debug=1/.test(location.search) || localStorage.getItem('nutriflow.bcDebug') === '1';
+
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const usdaKey = () => lsGet('nutriflow.usdaKey') || 'DEMO_KEY';
+  const isDebug = () => /[?&]debug=1/.test(location.search) || lsGet('nutriflow.bcDebug') === '1';
 
   let trace = [];
   const mark = (source, status, note, t0) => {
@@ -95,7 +109,6 @@ const BarcodeSources = (() => {
   const STOP = new Set(['и', 'с', 'со', 'без', 'для', 'в', 'во', 'на', 'из', 'по', 'the', 'and', 'with',
     'г', 'гр', 'мл', 'кг', 'л', 'g', 'ml', 'kg', 'l', 'шт', 'упаковка', 'пачка', 'батончик', 'шоколад']);
   const tokens = (s) => norm(s).split(/[^a-zа-я0-9%]+/).filter((w) => w.length > 1 && !STOP.has(w));
-
   const drinkTags = (tags) => Array.isArray(tags) && tags.some((t) => /^en:(beverages|drinks|sodas|juices|waters|milks|teas|coffees|dairy-drinks|plant-based-beverages|fermented-milks|yogurts)/.test(String(t)));
   const isRussia = (pr) => Array.isArray(pr.countries_tags) && pr.countries_tags.some((t) => /russia|russian-federation/.test(String(t)));
 
@@ -114,6 +127,7 @@ const BarcodeSources = (() => {
     const n = pr.nutriments || {};
     const qty = parseQty(pr.quantity);
     const servingG = num(pr.serving_quantity) || gramsFromText(pr.serving_size);
+
     let kcal = per100(n, 'energy-kcal', servingG);
     if (!kcal) {
       const kj = per100(n, 'energy-kj', servingG) || num(n['energy_100g']);
@@ -122,11 +136,17 @@ const BarcodeSources = (() => {
     const p = per100(n, 'proteins', servingG);
     const f = per100(n, 'fat', servingG);
     const c = per100(n, 'carbohydrates', servingG);
+
     const brand = clean(String(pr.brands || '').split(',')[0]);
     const nameRu = clean(pr.product_name_ru);
     const nameAny = clean(pr.product_name);
+    /* Имя может лежать только в иностранном языковом поле */
+    const nameLang = clean(pr.product_name_en || pr.product_name_de || pr.product_name_fr
+      || pr.product_name_es || pr.product_name_it || pr.product_name_pl || pr.product_name_uk);
     const generic = clean(pr.product_name_ru ? pr.generic_name_ru : pr.generic_name) || clean(pr.generic_name_ru);
-    const name = nameRu || nameAny || generic;
+    const name = nameRu || nameAny || nameLang || generic;
+    const nameReal = Boolean(name);
+
     const pack = num(pr.product_quantity) || qty.pack;
     let piece = qty.piece;
     const servingPieces = (() => {
@@ -136,11 +156,14 @@ const BarcodeSources = (() => {
     if (!piece && servingG > 0 && servingG < 2000) piece = servingPieces > 1 ? Math.round(servingG / servingPieces * 10) / 10 : servingG;
     if (!piece && pack > 0 && servingPieces > 1) piece = Math.round(pack / servingPieces * 10) / 10;
     if (piece && pack && piece > pack) piece = 0;
+
     const unit = qty.unit === 'ml' || drinkTags(pr.categories_tags) ? 'ml' : 'g';
+
     return {
       id: null,
       code: digits(pr.code),
       name: name || 'Товар ' + digits(pr.code),
+      nameReal,
       brand,
       fullName: fullNameOf(brand, name, generic, clean(pr.quantity)) || name,
       kcal, p, f, c,
@@ -150,16 +173,20 @@ const BarcodeSources = (() => {
       ru: isRussia(pr),
       image: pr.image_front_small_url || '',
       hasNutrition: kcal > 0 || p > 0 || f > 0 || c > 0,
-      searchText: [brand, nameRu, nameAny, generic, pr.quantity].filter(Boolean).join(' '),
+      searchText: [brand, nameRu, nameAny, nameLang, generic, pr.quantity].filter(Boolean).join(' '),
       source,
     };
   }
 
   async function offByCode(host, code, source) {
     const data = await fetchJSON(`${host}/api/v2/product/${code}.json?fields=${FIELDS}&lc=ru`, 9000);
-    if (data.status !== 1 || !data.product) return null;
+    /* API v2 отдаёт status:"success", v0/v1 отдавали 1 — принимаем оба,
+       иначе точный поиск по коду всегда считался «пусто». */
+    const ok = data.status === 1 || String(data.status).startsWith('success');
+    if (!ok || !data.product) return null;
     const item = fromOFF(data.product, source);
-    return item.name ? item : null;
+    /* Без имени и без КБЖУ товар бесполезен — пускаем каскад дальше */
+    return (item.hasNutrition || item.nameReal) ? item : null;
   }
 
   async function offSearch(query, { ru = true, limit = 14 } = {}) {
@@ -170,7 +197,8 @@ const BarcodeSources = (() => {
     if (ru) params.set('countries_tags_en', 'russia');
     const data = await fetchJSON(`${HOSTS.food}/cgi/search.pl?${params.toString()}`, 11000);
     const arr = Array.isArray(data.products) ? data.products : [];
-    return arr.map((pr) => fromOFF(pr, 'Open Food Facts')).filter((x) => x.name);
+    /* Безымянные «Товар CODE» в кандидаты не пускаем */
+    return arr.map((pr) => fromOFF(pr, 'Open Food Facts')).filter((x) => x.nameReal);
   }
 
   /* ---------- UPCitemdb: только название и бренд, без КБЖУ ---------- */
@@ -213,6 +241,7 @@ const BarcodeSources = (() => {
       source: 'USDA FoodData Central',
     };
   }
+
   async function usdaByCode(code) {
     const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(code)}`
       + `&dataType=Branded&pageSize=10&api_key=${encodeURIComponent(usdaKey())}`;
@@ -279,7 +308,10 @@ const BarcodeSources = (() => {
       }
     };
     const finish = (res) => {
-      if (isDebug()) { console.log('%c[NutriFlow] код', 'color:#2f7fd6;font-weight:bold', code); console.table(trace); }
+      if (isDebug()) {
+        console.log('%c[NutriFlow] код', 'color:#2f7fd6;font-weight:bold', code);
+        console.table(trace);
+      }
       return res;
     };
 
@@ -357,7 +389,7 @@ const BarcodeSources = (() => {
     const q = clean(query);
     if (q.length < 3) return [];
     const list = await collectCandidates(q, expectPack, limit);
-    if (isDebug()) console.table(list.map((x) => ({名称: x.fullName, kcal: x.kcal, pack: x.pack, score: x.score })));
+    if (isDebug()) console.table(list.map((x) => ({ name: x.fullName, kcal: x.kcal, pack: x.pack, score: x.score })));
     return list;
   }
 
